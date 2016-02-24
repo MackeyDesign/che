@@ -50,6 +50,7 @@ public class WsAgentStateController implements ConnectionOpenedHandler, Connecti
 
     private MessageBus                messageBus;
     private WsAgentState              state;
+    private boolean                   initialized;
     private String                    wsUrl;
     private int                       countRetry;
     private AsyncCallback<MessageBus> messageBusCallback;
@@ -64,7 +65,7 @@ public class WsAgentStateController implements ConnectionOpenedHandler, Connecti
         this.eventBus = eventBus;
         this.messageBusProvider = messageBusProvider;
         this.initialLoadingInfo = initialLoadingInfo;
-
+        this.state = WsAgentState.STOPPED;
         retryConnectionTimer = new Timer() {
             @Override
             public void run() {
@@ -75,20 +76,16 @@ public class WsAgentStateController implements ConnectionOpenedHandler, Connecti
     }
 
     public void initialize(String wsUrl) {
+        if (initialized) {
+            return;
+        }
+
+        initialized = true;
         this.wsUrl = wsUrl;
         this.countRetry = 50;
         this.state = WsAgentState.STOPPED;
-
         initialLoadingInfo.setOperationStatus(WS_AGENT_BOOTING.getValue(), IN_PROGRESS);
         connect();
-
-        messageBus = messageBusProvider.createMachineMessageBus(wsUrl);
-        messageBus.addOnOpenHandler(new ConnectionOpenedHandler() {
-            @Override
-            public void onOpen() {
-                messageBus.removeOnOpenHandler(this);
-            }
-        });
     }
 
     @Override
@@ -99,8 +96,9 @@ public class WsAgentStateController implements ConnectionOpenedHandler, Connecti
 
     @Override
     public void onError() {
+         testConnection = null;
         if (countRetry > 0) {
-            retryConnectionTimer.schedule(1000);
+            retryConnectionTimer.schedule(3000);
         } else {
             state = WsAgentState.STOPPED;
             initialLoadingInfo.setOperationStatus(WS_AGENT_BOOTING.getValue(), ERROR);
@@ -115,9 +113,10 @@ public class WsAgentStateController implements ConnectionOpenedHandler, Connecti
         state = WsAgentState.STARTED;
         initialLoadingInfo.setOperationStatus(WS_AGENT_BOOTING.getValue(), SUCCESS);
         loader.hide();
-
+        messageBus = messageBusProvider.createMachineMessageBus(wsUrl);
         if (messageBusCallback != null) {
             messageBusCallback.onSuccess(messageBus);
+            eventBus.fireEvent(WsAgentStateEvent.createWsAgentStartedEvent());
         }
     }
 
@@ -131,6 +130,7 @@ public class WsAgentStateController implements ConnectionOpenedHandler, Connecti
             public void makeCall(AsyncCallback<MessageBus> callback) {
                 if (messageBus != null) {
                     callback.onSuccess(messageBus);
+                    eventBus.fireEvent(WsAgentStateEvent.createWsAgentStartedEvent());
                 } else {
                     WsAgentStateController.this.messageBusCallback = callback;
                 }

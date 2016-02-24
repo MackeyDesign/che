@@ -17,12 +17,14 @@ import com.google.inject.Singleton;
 import org.eclipse.che.api.core.model.machine.MachineStatus;
 import org.eclipse.che.api.machine.gwt.client.MachineManager;
 import org.eclipse.che.api.machine.gwt.client.MachineServiceClient;
+import org.eclipse.che.api.machine.gwt.client.WsAgentStateController;
 import org.eclipse.che.api.machine.shared.dto.MachineDto;
 import org.eclipse.che.api.promises.client.Operation;
 import org.eclipse.che.api.promises.client.OperationException;
 import org.eclipse.che.api.promises.client.PromiseError;
 import org.eclipse.che.ide.api.app.AppContext;
 import org.eclipse.che.ide.api.component.WsAgentComponent;
+import org.eclipse.che.ide.websocket.MessageBus;
 
 import java.util.List;
 
@@ -36,14 +38,17 @@ public class MachineComponent implements WsAgentComponent {
     private final MachineServiceClient machineServiceClient;
     private final AppContext           appContext;
     private final MachineManager       machineManager;
+    private final WsAgentStateController wsAgentStateController;
 
     @Inject
     public MachineComponent(AppContext appContext,
                             MachineManager machineManager,
-                            MachineServiceClient machineServiceClient) {
+                            MachineServiceClient machineServiceClient,
+                            WsAgentStateController wsAgentStateController) {
         this.machineServiceClient = machineServiceClient;
         this.appContext = appContext;
         this.machineManager = machineManager;
+        this.wsAgentStateController = wsAgentStateController;
     }
 
     @Override
@@ -65,10 +70,6 @@ public class MachineComponent implements WsAgentComponent {
 
                         appContext.setDevMachineId(descriptor.getId());
                         machineManager.onMachineRunning(descriptor.getId());
-                        break;
-                    }
-                    if (isDev && status == CREATING) {
-                        callback.onSuccess(MachineComponent.this);
                         break;
                     }
                 }
