@@ -111,8 +111,19 @@ public interface GitHubClientService {
      *         the repository name.
      * @param callback
      *         callback called when operation is done.
+     * @deprecated use {@link #getPullRequests(String, String)}
      */
     void getPullRequests(@NotNull String owner, @NotNull String repository, @NotNull AsyncRequestCallback<GitHubPullRequestList> callback);
+
+    /**
+     * Get pull requests for given repository.
+     *
+     * @param owner
+     *         the repository owner.
+     * @param repository
+     *         the repository name.
+     */
+    Promise<GitHubPullRequestList> getPullRequests(@NotNull String owner, @NotNull String repository);
 
     /**
      * Get a pull request by id for a given repository.
