@@ -147,6 +147,16 @@ public class GitHubClientServiceImpl implements GitHubClientService {
         asyncRequestFactory.createPostRequest(url, input).loader(loader).send(callback);
     }
 
+    @Override
+    public Promise<GitHubPullRequest> createPullRequest(@NotNull String user,
+                                                        @NotNull String repository,
+                                                        @NotNull GitHubPullRequestCreationInput input) {
+        final String url = baseUrl + PULL_REQUEST + "/" + user + "/" + repository;
+        return asyncRequestFactory.createPostRequest(url, input)
+                                  .loader(loader)
+                                  .send(dtoUnmarshallerFactory.newUnmarshaller(GitHubPullRequest.class));
+    }
+
     /** {@inheritDoc} */
     @Override
     public void getRepositoriesByUser(String userName, @NotNull AsyncRequestCallback<GitHubRepositoryList> callback) {

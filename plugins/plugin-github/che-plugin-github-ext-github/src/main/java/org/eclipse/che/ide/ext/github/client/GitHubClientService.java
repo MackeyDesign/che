@@ -154,8 +154,14 @@ public interface GitHubClientService {
      * @param callback
      *         callback called when operation is done.
      */
-    void createPullRequest(@NotNull String user, @NotNull String repository, @NotNull GitHubPullRequestCreationInput input,
+    void createPullRequest(@NotNull String user,
+                           @NotNull String repository,
+                           @NotNull GitHubPullRequestCreationInput input,
                            @NotNull AsyncRequestCallback<GitHubPullRequest> callback);
+
+    Promise<GitHubPullRequest> createPullRequest(@NotNull String user,
+                                                 @NotNull String repository,
+                                                 @NotNull GitHubPullRequestCreationInput input);
 
     /**
      * Get the list of available public repositories for a GitHub user.
