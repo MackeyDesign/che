@@ -99,10 +99,18 @@ public class GitHubClientServiceImpl implements GitHubClientService {
 
     /** {@inheritDoc} */
     @Override
-    public void getForks(@NotNull String user, @NotNull String repository,
+    public void getForks(@NotNull String user,
+                         @NotNull String repository,
                          @NotNull AsyncRequestCallback<GitHubRepositoryList> callback) {
         String url = baseUrl + FORKS + "/" + user + "/" + repository;
         asyncRequestFactory.createGetRequest(url).loader(loader).send(callback);
+    }
+
+    @Override
+    public Promise<GitHubRepositoryList> getForks(String user, String repository) {
+        return asyncRequestFactory.createGetRequest(baseUrl + FORKS + '/' + user + '/' + repository)
+                                  .loader(loader)
+                                  .send(dtoUnmarshallerFactory.newUnmarshaller(GitHubRepositoryList.class));
     }
 
     /** {@inheritDoc} */
@@ -110,6 +118,13 @@ public class GitHubClientServiceImpl implements GitHubClientService {
     public void fork(@NotNull String user, @NotNull String repository, @NotNull AsyncRequestCallback<GitHubRepository> callback) {
         String url = baseUrl + CREATE_FORK + "/" + user + "/" + repository;
         asyncRequestFactory.createGetRequest(url).loader(loader).send(callback);
+    }
+
+    @Override
+    public Promise<GitHubRepository> fork(String user, String repository) {
+        return asyncRequestFactory.createGetRequest(baseUrl + CREATE_FORK + '/' + user + '/' + repository)
+                                  .loader(loader)
+                                  .send(dtoUnmarshallerFactory.newUnmarshaller(GitHubRepository.class));
     }
 
     @Override

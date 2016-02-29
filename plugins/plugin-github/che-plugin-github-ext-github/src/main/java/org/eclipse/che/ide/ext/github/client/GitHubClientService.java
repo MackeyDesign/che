@@ -70,8 +70,12 @@ public interface GitHubClientService {
      *         the repository name.
      * @param callback
      *         callback called when operation is done.
+     * @deprecated use {@link #getForks(String user, String repository)}
      */
+    @Deprecated
     void getForks(@NotNull String user, @NotNull String repository, @NotNull AsyncRequestCallback<GitHubRepositoryList> callback);
+
+    Promise<GitHubRepositoryList> getForks(String user, String repository);
 
     /**
      * Fork the given repository for the authorized user.
@@ -82,8 +86,12 @@ public interface GitHubClientService {
      *         the repository name.
      * @param callback
      *         callback called when operation is done.
+     * @deprecated use {@link #fork(String, String)}
      */
+    @Deprecated
     void fork(@NotNull String user, @NotNull String repository, @NotNull AsyncRequestCallback<GitHubRepository> callback);
+
+    Promise<GitHubRepository> fork(String user, String repository);
 
     /**
      * Add a comment to the issue on the given repository.
