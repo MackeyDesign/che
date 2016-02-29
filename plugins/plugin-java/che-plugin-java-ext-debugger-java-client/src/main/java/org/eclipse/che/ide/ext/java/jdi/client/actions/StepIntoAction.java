@@ -53,9 +53,7 @@ public class StepIntoAction extends Action {
     public void update(ActionEvent e) {
         Debugger debugger = debuggerManager.getDebugger();
 
-        e.getPresentation().setEnabled(debugger != null &&
-                debugger.getDebuggerState() == DebuggerState.CONNECTED &&
-                breakpointManager.getCurrentBreakpoint() != null);
+        e.getPresentation().setEnabled(debugger != null && debugger.getDebuggerState() == DebuggerState.CONNECTED);
     }
 
 }
