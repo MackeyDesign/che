@@ -106,7 +106,7 @@ public class PullPresenterTest extends BaseTest {
                                       constant,
                                       notificationManager,
                                       dtoUnmarshallerFactory,
-                                      dtoFactory,
+                                      dialogFactory,
                                       branchSearcher,
                                       projectExplorer,
                                       gitOutputConsoleFactory,

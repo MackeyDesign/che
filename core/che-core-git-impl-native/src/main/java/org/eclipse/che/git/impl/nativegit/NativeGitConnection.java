@@ -419,7 +419,21 @@ public class NativeGitConnection implements GitConnection {
                    .setRemoteUri(remoteUri)
                    .setTimeout(request.getTimeout());
 
-        executeRemoteCommand(pullCommand);
+        try {
+            executeRemoteCommand(pullCommand);
+        } catch (GitException exception) {
+            Pattern errorPattern = Pattern.compile("fatal: empty ident name .* not allowed\n");
+            if (errorPattern.matcher(exception.getMessage()).find()) {
+                throw new GitException(exception.getMessage(), ErrorCodes.NO_COMMITTER_NAME_OR_EMAIL_DEFINED);
+            } else if ("Unable get private ssh key".equals(exception.getMessage())) {
+                throw new GitException(exception.getMessage(), ErrorCodes.UNABLE_GET_PRIVATE_SSH_KEY);
+            } else if (("Auto-merging file\nCONFLICT (content): Merge conflict in file\n" +
+                        "Automatic merge failed; fix conflicts and then commit the result.\n").equals(exception.getMessage())) {
+                throw new GitException(exception.getMessage(), ErrorCodes.MERGE_CONFLICT);
+            } else {
+                throw exception;
+            }
+        }
 
         return pullCommand.getPullResponse();
     }

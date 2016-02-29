@@ -10,6 +10,10 @@
  *******************************************************************************/
 package org.eclipse.che.ide.ext.git.client.status;
 
+import org.eclipse.che.api.git.shared.Status;
+import org.eclipse.che.api.promises.client.Operation;
+import org.eclipse.che.api.promises.client.OperationException;
+import org.eclipse.che.api.promises.client.PromiseError;
 import org.eclipse.che.ide.ext.git.client.GitLocalizationConstant;
 import org.eclipse.che.api.git.gwt.client.GitServiceClient;
 import org.eclipse.che.ide.api.app.AppContext;
@@ -24,6 +28,10 @@ import org.eclipse.che.ide.rest.StringUnmarshaller;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import static com.google.common.collect.Iterables.contains;
 import static org.eclipse.che.api.git.shared.StatusFormat.LONG;
 import static org.eclipse.che.ide.api.notification.StatusNotification.Status.FAIL;
 
@@ -72,9 +80,7 @@ public class StatusCommandPresenter {
                            new AsyncRequestCallback<String>(new StringUnmarshaller()) {
                                @Override
                                protected void onSuccess(String result) {
-                                   final GitOutputConsole console = gitOutputConsoleFactory.create(STATUS_COMMAND_NAME);
-                                   printGitStatus(result, console);
-                                   consolesPanelPresenter.addCommandOutput(appContext.getDevMachineId(), console);
+                                   printGitStatus(result, project);
                                }
 
                                @Override
@@ -89,27 +95,56 @@ public class StatusCommandPresenter {
      *
      * @param statusText
      *         text to be printed
-     * @param console
-     *         console for displaying status
      */
-    private void printGitStatus(String statusText, GitOutputConsole console) {
-
-        console.print("");
-        String[] lines = statusText.split("\n");
-        for (String line : lines) {
-
-            if (line.startsWith("\tmodified:") || line.startsWith("#\tmodified:")) {
-                console.printError(line);
-                continue;
+    private void printGitStatus(final String statusText, final CurrentProject project) {
+        service.status(appContext.getWorkspaceId(), project.getRootProject()).then(new Operation<Status>() {
+            @Override
+            public void apply(Status arg) throws OperationException {
+                GitOutputConsole console = gitOutputConsoleFactory.create(STATUS_COMMAND_NAME);
+                String[] lines = statusText.split("\n");
+                //Files that have staged and unstaged changes in the same time
+                List<String> stagedAndUnstagedFiles = new ArrayList<>();
+                for (String line : lines) {
+                    if (line.contains("modified:")) {
+                        String fileName = line.replaceAll(".*modified: *", "");
+                        if (!stagedAndUnstagedFiles.contains(fileName) && contains(arg.getModified(), fileName) &&
+                            contains(arg.getChanged(), fileName)) {
+                            console.printInfo(line);
+                            stagedAndUnstagedFiles.add(fileName);
+                        } else if (contains(arg.getModified(), fileName) || contains(arg.getConflicting(), fileName)) {
+                            console.printError(line);
+                        } else {
+                            console.printInfo(line);
+                        }
+                        continue;
+                    }
+                    if (line.contains("deleted:")) {
+                        String fileName = line.replaceAll(".*deleted: *", "");
+                        if (contains(arg.getMissing(), fileName)) {
+                            console.printError(line);
+                        } else {
+                            console.printInfo(line);
+                        }
+                        continue;
+                    }
+                    if (line.startsWith("\t") || line.startsWith("#\t")) {
+                        String untrackedItem = line.replaceAll(".*\t", "").replace("/", "");
+                        if (contains(arg.getUntracked(), untrackedItem) || contains(arg.getUntrackedFolders(), untrackedItem)) {
+                            console.printError(line);
+                        } else {
+                            console.printInfo(line);
+                        }
+                        continue;
+                    }
+                    console.print(line);
+                }
+                consolesPanelPresenter.addCommandOutput(appContext.getDevMachineId(), console);
             }
-
-            if (line.startsWith("\t") || line.startsWith("#\t")) {
-                console.printInfo(line);
-                continue;
+        }).catchError(new Operation<PromiseError>() {
+            @Override
+            public void apply(PromiseError arg) throws OperationException {
+                notificationManager.notify(constant.statusFailed(), FAIL, true, project.getRootProject());
             }
-
-            console.print(line);
-        }
+        });
     }
-
 }
