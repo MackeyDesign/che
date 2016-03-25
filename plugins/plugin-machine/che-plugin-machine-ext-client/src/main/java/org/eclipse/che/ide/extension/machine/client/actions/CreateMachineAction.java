@@ -12,7 +12,6 @@ package org.eclipse.che.ide.extension.machine.client.actions;
 
 import com.google.inject.Inject;
 
-import org.eclipse.che.api.analytics.client.logger.AnalyticsEventLogger;
 import org.eclipse.che.ide.api.action.AbstractPerspectiveAction;
 import org.eclipse.che.ide.api.action.ActionEvent;
 import org.eclipse.che.ide.extension.machine.client.MachineLocalizationConstant;
@@ -21,7 +20,7 @@ import org.eclipse.che.ide.extension.machine.client.machine.create.CreateMachine
 import javax.validation.constraints.NotNull;
 import java.util.Collections;
 
-import static org.eclipse.che.ide.extension.machine.client.perspective.MachinePerspective.MACHINE_PERSPECTIVE_ID;
+import static org.eclipse.che.ide.extension.machine.client.perspective.OperationsPerspective.OPERATIONS_PERSPECTIVE_ID;
 
 /**
  * The action contains business logic which calls special method to create machine.
@@ -31,19 +30,16 @@ import static org.eclipse.che.ide.extension.machine.client.perspective.MachinePe
 public class CreateMachineAction extends AbstractPerspectiveAction {
 
     private final CreateMachinePresenter createMachinePresenter;
-    private final AnalyticsEventLogger   eventLogger;
 
     @Inject
     public CreateMachineAction(MachineLocalizationConstant locale,
-                               CreateMachinePresenter createMachinePresenter,
-                               AnalyticsEventLogger eventLogger) {
-        super(Collections.singletonList(MACHINE_PERSPECTIVE_ID),
+                               CreateMachinePresenter createMachinePresenter) {
+        super(Collections.singletonList(OPERATIONS_PERSPECTIVE_ID),
               locale.machineCreateTitle(),
               locale.machineCreateDescription(),
               null, null);
 
         this.createMachinePresenter = createMachinePresenter;
-        this.eventLogger = eventLogger;
     }
 
     /** {@inheritDoc} */
@@ -55,7 +51,7 @@ public class CreateMachineAction extends AbstractPerspectiveAction {
     /** {@inheritDoc} */
     @Override
     public void actionPerformed(@NotNull ActionEvent event) {
-        eventLogger.log(this);
         createMachinePresenter.showDialog();
     }
+
 }

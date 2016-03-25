@@ -19,7 +19,6 @@ import org.junit.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 
-import static org.eclipse.che.ide.ui.dialogs.confirm.ConfirmDialogView.ActionDelegate;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -56,4 +55,5 @@ public class ConfirmDialogFooterTest extends BaseTest {
 
         verify(actionDelegate).cancelled();
     }
+
 }

@@ -10,6 +10,7 @@
  *******************************************************************************/
 package org.eclipse.che.ide.ext.github.client;
 
+import com.google.gwt.http.client.RequestBuilder;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 
@@ -99,10 +100,18 @@ public class GitHubClientServiceImpl implements GitHubClientService {
 
     /** {@inheritDoc} */
     @Override
-    public void getForks(@NotNull String user, @NotNull String repository,
+    public void getForks(@NotNull String user,
+                         @NotNull String repository,
                          @NotNull AsyncRequestCallback<GitHubRepositoryList> callback) {
         String url = baseUrl + FORKS + "/" + user + "/" + repository;
         asyncRequestFactory.createGetRequest(url).loader(loader).send(callback);
+    }
+
+    @Override
+    public Promise<GitHubRepositoryList> getForks(String user, String repository) {
+        return asyncRequestFactory.createGetRequest(baseUrl + FORKS + '/' + user + '/' + repository)
+                                  .loader(loader)
+                                  .send(dtoUnmarshallerFactory.newUnmarshaller(GitHubRepositoryList.class));
     }
 
     /** {@inheritDoc} */
@@ -110,6 +119,13 @@ public class GitHubClientServiceImpl implements GitHubClientService {
     public void fork(@NotNull String user, @NotNull String repository, @NotNull AsyncRequestCallback<GitHubRepository> callback) {
         String url = baseUrl + CREATE_FORK + "/" + user + "/" + repository;
         asyncRequestFactory.createGetRequest(url).loader(loader).send(callback);
+    }
+
+    @Override
+    public Promise<GitHubRepository> fork(String user, String repository) {
+        return asyncRequestFactory.createGetRequest(baseUrl + CREATE_FORK + '/' + user + '/' + repository)
+                                  .loader(loader)
+                                  .send(dtoUnmarshallerFactory.newUnmarshaller(GitHubRepository.class));
     }
 
     @Override
@@ -127,6 +143,22 @@ public class GitHubClientServiceImpl implements GitHubClientService {
     }
 
     @Override
+    public Promise<GitHubPullRequestList> getPullRequests(@NotNull String owner, @NotNull String repository) {
+        final String url = baseUrl + PULL_REQUESTS + '/' + owner + '/' + repository;
+        return asyncRequestFactory.createGetRequest(url)
+                                  .loader(loader)
+                                  .send(dtoUnmarshallerFactory.newUnmarshaller(GitHubPullRequestList.class));
+    }
+
+    @Override
+    public Promise<GitHubPullRequestList> getPullRequests(String owner, String repository, String head) {
+        final String url = baseUrl + PULL_REQUESTS + '/' + owner + '/' + repository + "?head=" + head;
+        return asyncRequestFactory.createGetRequest(url)
+                                  .loader(loader)
+                                  .send(dtoUnmarshallerFactory.newUnmarshaller(GitHubPullRequestList.class));
+    }
+
+    @Override
     public void getPullRequest(final String owner, final String repository, final String pullRequestId,
                                final AsyncRequestCallback<GitHubPullRequest> callback) {
         String url = baseUrl + PULL_REQUESTS + "/" + owner + "/" + repository + "/" + pullRequestId;
@@ -139,6 +171,16 @@ public class GitHubClientServiceImpl implements GitHubClientService {
                                   @NotNull AsyncRequestCallback<GitHubPullRequest> callback) {
         String url = baseUrl + PULL_REQUEST + "/" + user + "/" + repository;
         asyncRequestFactory.createPostRequest(url, input).loader(loader).send(callback);
+    }
+
+    @Override
+    public Promise<GitHubPullRequest> createPullRequest(@NotNull String user,
+                                                        @NotNull String repository,
+                                                        @NotNull GitHubPullRequestCreationInput input) {
+        final String url = baseUrl + PULL_REQUEST + '/' + user + '/' + repository;
+        return asyncRequestFactory.createPostRequest(url, input)
+                                  .loader(loader)
+                                  .send(dtoUnmarshallerFactory.newUnmarshaller(GitHubPullRequest.class));
     }
 
     /** {@inheritDoc} */
@@ -206,5 +248,16 @@ public class GitHubClientServiceImpl implements GitHubClientService {
     public void updatePublicKey(@NotNull AsyncRequestCallback<Void> callback) {
         String url = baseUrl + SSH_GEN;
         asyncRequestFactory.createPostRequest(url, null).loader(loader).send(callback);
+    }
+
+    @Override
+    public Promise<GitHubPullRequest> updatePullRequest(String owner,
+                                                        String repository,
+                                                        String pullRequestId,
+                                                        GitHubPullRequest updateInput) {
+        final String url = baseUrl + PULL_REQUEST + '/' + owner + '/' + repository + '/' + pullRequestId;
+        return asyncRequestFactory.createRequest(RequestBuilder.PUT, url, updateInput, false)
+                                  .loader(loader)
+                                  .send(dtoUnmarshallerFactory.newUnmarshaller(GitHubPullRequest.class));
     }
 }

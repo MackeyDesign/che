@@ -12,7 +12,6 @@ package org.eclipse.che.ide.extension.machine.client.actions;
 
 import com.google.inject.Inject;
 
-import org.eclipse.che.api.analytics.client.logger.AnalyticsEventLogger;
 import org.eclipse.che.api.machine.gwt.client.MachineManager;
 import org.eclipse.che.api.machine.shared.dto.MachineDto;
 import org.eclipse.che.ide.api.action.AbstractPerspectiveAction;
@@ -22,7 +21,7 @@ import org.eclipse.che.ide.extension.machine.client.perspective.widgets.machine.
 
 import java.util.Collections;
 
-import static org.eclipse.che.ide.extension.machine.client.perspective.MachinePerspective.MACHINE_PERSPECTIVE_ID;
+import static org.eclipse.che.ide.extension.machine.client.perspective.OperationsPerspective.OPERATIONS_PERSPECTIVE_ID;
 
 /**
  * The action contains business logic which calls special method to restart machine.
@@ -34,23 +33,20 @@ public class RestartMachineAction extends AbstractPerspectiveAction {
     private final MachinePanelPresenter       panelPresenter;
     private final MachineManager              machineManager;
     private final MachineLocalizationConstant locale;
-    private final AnalyticsEventLogger        eventLogger;
 
     private MachineDto selectedMachine;
 
     @Inject
     public RestartMachineAction(MachineLocalizationConstant locale,
                                 MachinePanelPresenter panelPresenter,
-                                MachineManager machineManager,
-                                AnalyticsEventLogger eventLogger) {
-        super(Collections.singletonList(MACHINE_PERSPECTIVE_ID),
+                                MachineManager machineManager) {
+        super(Collections.singletonList(OPERATIONS_PERSPECTIVE_ID),
               locale.controlMachineRestartText(),
               locale.controlMachineRestartTooltip(),
               null, null);
 
         this.panelPresenter = panelPresenter;
         this.locale = locale;
-        this.eventLogger = eventLogger;
         this.machineManager = machineManager;
     }
 
@@ -70,8 +66,6 @@ public class RestartMachineAction extends AbstractPerspectiveAction {
     /** {@inheritDoc} */
     @Override
     public void actionPerformed(ActionEvent event) {
-        eventLogger.log(this);
-
         machineManager.restartMachine(selectedMachine);
     }
 }

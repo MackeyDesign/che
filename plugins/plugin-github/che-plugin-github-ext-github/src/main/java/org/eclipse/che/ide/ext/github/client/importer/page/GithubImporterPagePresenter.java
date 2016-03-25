@@ -185,12 +185,10 @@ public class GithubImporterPagePresenter extends AbstractWizardPage<ProjectConfi
     public void keepDirectoryNameChanged(@NotNull String directoryName) {
         if (view.keepDirectory()) {
             projectParameters().put("keepDirectory", directoryName);
-            dataObject.setPath(view.getDirectoryName());
             dataObject.withType("blank");
             view.highlightDirectoryNameField(!NameUtils.checkProjectName(view.getDirectoryName()));
         } else {
             projectParameters().remove("keepDirectory");
-            dataObject.setPath(null);
             dataObject.withType(null);
             view.highlightDirectoryNameField(false);
         }
@@ -282,9 +280,9 @@ public class GithubImporterPagePresenter extends AbstractWizardPage<ProjectConfi
      */
     private void authorize() {
         showProcessing(true);
-        gitHubAuthenticator.authorize(
+        gitHubAuthenticator.authenticate(
                 OAuth2AuthenticatorUrlProvider.get(restContext, "github", appContext.getCurrentUser().getProfile().getUserId(),
-                                                   Lists.asList("user", new String[] {"repo", "write:public_key"})),
+                                                   Lists.asList("user", new String[]{"repo", "write:public_key"})),
                 new AsyncCallback<OAuthStatus>() {
                     @Override
                     public void onFailure(Throwable caught) {

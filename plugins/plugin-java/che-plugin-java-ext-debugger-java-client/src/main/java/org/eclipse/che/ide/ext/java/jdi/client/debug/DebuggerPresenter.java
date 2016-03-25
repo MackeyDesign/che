@@ -18,7 +18,6 @@ import com.google.gwt.user.client.ui.IsWidget;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.google.web.bindery.event.shared.EventBus;
-import com.google.web.bindery.event.shared.HandlerRegistration;
 
 import org.eclipse.che.api.machine.gwt.client.events.WsAgentStateEvent;
 import org.eclipse.che.api.machine.gwt.client.events.WsAgentStateHandler;
@@ -30,9 +29,8 @@ import org.eclipse.che.ide.api.app.AppContext;
 import org.eclipse.che.ide.api.app.CurrentProject;
 import org.eclipse.che.ide.api.editor.EditorAgent;
 import org.eclipse.che.ide.api.editor.EditorPartPresenter;
-import org.eclipse.che.ide.api.event.ActivePartChangedEvent;
-import org.eclipse.che.ide.api.event.ActivePartChangedHandler;
 import org.eclipse.che.ide.api.event.FileEvent;
+import org.eclipse.che.ide.api.filetypes.FileTypeRegistry;
 import org.eclipse.che.ide.api.notification.NotificationManager;
 import org.eclipse.che.ide.api.notification.StatusNotification;
 import org.eclipse.che.ide.api.parts.PartStackType;
@@ -45,7 +43,6 @@ import org.eclipse.che.ide.debug.Breakpoint;
 import org.eclipse.che.ide.debug.BreakpointManager;
 import org.eclipse.che.ide.debug.BreakpointStateEvent;
 import org.eclipse.che.ide.debug.Debugger;
-import org.eclipse.che.ide.debug.DebuggerManager;
 import org.eclipse.che.ide.debug.DebuggerState;
 import org.eclipse.che.ide.dto.DtoFactory;
 import org.eclipse.che.ide.ext.java.client.project.node.JavaNodeManager;
@@ -109,6 +106,7 @@ import static org.eclipse.che.ide.debug.DebuggerStateEvent.createInitializedStat
 import static org.eclipse.che.ide.ext.java.jdi.shared.DebuggerEvent.BREAKPOINT;
 import static org.eclipse.che.ide.ext.java.jdi.shared.DebuggerEvent.BREAKPOINT_ACTIVATED;
 import static org.eclipse.che.ide.ext.java.jdi.shared.DebuggerEvent.STEP;
+import static org.eclipse.che.ide.api.editor.EditorAgent.OpenEditorCallback;
 
 /**
  * The presenter provides debug java application.
@@ -126,35 +124,36 @@ public class DebuggerPresenter extends BasePresenter implements DebuggerView.Act
     protected static final String LOCAL_STORAGE_DEBUGGER_KEY = "che-debugger";
     private static final   String TITLE                      = "Debug";
 
-    private final DtoFactory                             dtoFactory;
-    private final DtoUnmarshallerFactory                 dtoUnmarshallerFactory;
-    private final AppContext                             appContext;
-    private final ProjectExplorerPresenter               projectExplorer;
-    private final JavaNodeManager                        javaNodeManager;
-    private final JavaRuntimeResources                   javaRuntimeResources;
-    private final LocalStorageProvider                   localStorageProvider;
-    private final ToolbarPresenter                       debuggerToolbar;
+    private final DtoFactory               dtoFactory;
+    private final DtoUnmarshallerFactory   dtoUnmarshallerFactory;
+    private final AppContext               appContext;
+    private final ProjectExplorerPresenter projectExplorer;
+    private final JavaNodeManager          javaNodeManager;
+    private final JavaRuntimeResources     javaRuntimeResources;
+    private final LocalStorageProvider     localStorageProvider;
+    private final ToolbarPresenter         debuggerToolbar;
+    private final FileTypeRegistry fileTypeRegistry;
     /** Channel identifier to receive events from debugger over WebSocket. */
-    private       String                                 debuggerEventsChannel;
+    private String                                 debuggerEventsChannel;
     /** Channel identifier to receive event when debugger will be disconnected. */
-    private       String                                 debuggerDisconnectedChannel;
-    private       DebuggerView                           view;
-    private       EventBus                               eventBus;
-    private       DebuggerServiceClient                  service;
-    private       JavaRuntimeLocalizationConstant        constant;
-    private       DebuggerInfo                           debuggerInfo;
-    private       MessageBus                             messageBus;
-    private       BreakpointManager                      breakpointManager;
-    private       WorkspaceAgent                         workspaceAgent;
-    private       FqnResolverFactory                     resolverFactory;
-    private       EditorAgent                            editorAgent;
-    private       DebuggerVariable                       selectedVariable;
-    private       NotificationManager                    notificationManager;
+    private String                                 debuggerDisconnectedChannel;
+    private DebuggerView                           view;
+    private EventBus                               eventBus;
+    private DebuggerServiceClient                  service;
+    private JavaRuntimeLocalizationConstant        constant;
+    private DebuggerInfo                           debuggerInfo;
+    private MessageBus                             messageBus;
+    private BreakpointManager                      breakpointManager;
+    private WorkspaceAgent                         workspaceAgent;
+    private FqnResolverFactory                     resolverFactory;
+    private EditorAgent                            editorAgent;
+    private DebuggerVariable                       selectedVariable;
+    private NotificationManager                    notificationManager;
     /** Handler for processing events which is received from debugger over WebSocket connection. */
-    private       SubscriptionHandler<DebuggerEventList> debuggerEventsHandler;
-    private       SubscriptionHandler<Void>              debuggerDisconnectedHandler;
-    private       List<DebuggerVariable>                 variables;
-    private       Location                               executionPoint;
+    private SubscriptionHandler<DebuggerEventList> debuggerEventsHandler;
+    private SubscriptionHandler<Void>              debuggerDisconnectedHandler;
+    private List<DebuggerVariable>                 variables;
+    private Location                               executionPoint;
 
     @Inject
     public DebuggerPresenter(final DebuggerView view,
@@ -175,7 +174,8 @@ public class DebuggerPresenter extends BasePresenter implements DebuggerView.Act
                              final JavaNodeManager javaNodeManager,
                              final JavaRuntimeResources javaRuntimeResources,
                              final LocalStorageProvider localStorageProvider,
-                             final @DebuggerToolbar ToolbarPresenter debuggerToolbar) {
+                             final @DebuggerToolbar ToolbarPresenter debuggerToolbar,
+                             final FileTypeRegistry fileTypeRegistry) {
         this.view = view;
         this.eventBus = eventBus;
         this.dtoFactory = dtoFactory;
@@ -184,6 +184,7 @@ public class DebuggerPresenter extends BasePresenter implements DebuggerView.Act
         this.projectExplorer = projectExplorer;
         this.javaRuntimeResources = javaRuntimeResources;
         this.debuggerToolbar = debuggerToolbar;
+        this.fileTypeRegistry = fileTypeRegistry;
         this.view.setDelegate(this);
         this.view.setTitle(TITLE);
         this.service = service;
@@ -285,7 +286,8 @@ public class DebuggerPresenter extends BasePresenter implements DebuggerView.Act
         if (isDebuggerConnected()) {
             Location location = dtoFactory.createDto(Location.class);
             location.setLineNumber(lineNumber + 1);
-            final FqnResolver resolver = resolverFactory.getResolver(file.getMediaType());
+            String mediaType = fileTypeRegistry.getFileTypeByFile(file).getMimeTypes().get(0);
+            final FqnResolver resolver = resolverFactory.getResolver(mediaType);
             if (resolver != null) {
                 location.setClassName(resolver.resolveFqn(file));
             } else {
@@ -326,7 +328,8 @@ public class DebuggerPresenter extends BasePresenter implements DebuggerView.Act
         if (isDebuggerConnected()) {
             Location location = dtoFactory.createDto(Location.class);
             location.setLineNumber(lineNumber + 1);
-            FqnResolver resolver = resolverFactory.getResolver(file.getMediaType());
+            String mediaType = fileTypeRegistry.getFileTypeByFile(file).getMimeTypes().get(0);
+            FqnResolver resolver = resolverFactory.getResolver(mediaType);
             if (resolver != null) {
                 location.setClassName(resolver.resolveFqn(file));
             } else {
@@ -621,6 +624,7 @@ public class DebuggerPresenter extends BasePresenter implements DebuggerView.Act
 
                     @Override
                     public void onFailure(Throwable caught) {
+                        breakpointManager.setCurrentBreakpoint(finalLocation.getLineNumber() - 1);
                         notificationManager.notify(caught.getMessage(), StatusNotification.Status.FAIL, false);
                     }
                 });
@@ -697,32 +701,13 @@ public class DebuggerPresenter extends BasePresenter implements DebuggerView.Act
         }
 
         projectExplorer.getNodeByPath(new HasStorablePath.StorablePath(filePath)).then(new Operation<Node>() {
-            public HandlerRegistration handlerRegistration;
-
             @Override
             public void apply(final Node node) throws OperationException {
                 if (!(node instanceof FileReferenceNode)) {
                     return;
                 }
 
-                handlerRegistration = eventBus.addHandler(ActivePartChangedEvent.TYPE, new ActivePartChangedHandler() {
-                    @Override
-                    public void onActivePartChanged(ActivePartChangedEvent event) {
-                        if (event.getActivePart() instanceof EditorPartPresenter) {
-                            final VirtualFile openedFile = ((EditorPartPresenter)event.getActivePart()).getEditorInput().getFile();
-                            if (((FileReferenceNode)node).getStorablePath().equals(openedFile.getPath())) {
-                                handlerRegistration.removeHandler();
-                                // give the editor some time to fully render it's view
-                                new Timer() {
-                                    @Override
-                                    public void run() {
-                                        callback.onSuccess((VirtualFile)node);
-                                    }
-                                }.schedule(300);
-                            }
-                        }
-                    }
-                });
+                handleActivateFile((VirtualFile)node, callback);
                 eventBus.fireEvent(new FileEvent((VirtualFile)node, OPEN));
             }
         }).catchError(new Operation<PromiseError>() {
@@ -749,14 +734,18 @@ public class DebuggerPresenter extends BasePresenter implements DebuggerView.Act
                                                                     javaNodeManager.getJavaSettingsProvider()
                                                                                    .getSettings());
 
-        editorAgent.openEditor(jarFileNode, new EditorAgent.OpenEditorCallback() {
+        handleActivateFile(jarFileNode, callback);
+        eventBus.fireEvent(new FileEvent(jarFileNode, OPEN));
+    }
+
+    public void handleActivateFile(final VirtualFile virtualFile, final AsyncCallback<VirtualFile> callback) {
+        editorAgent.openEditor(virtualFile, new OpenEditorCallback() {
             @Override
             public void onEditorOpened(EditorPartPresenter editor) {
-                // give the editor some time to fully render it's view
                 new Timer() {
                     @Override
                     public void run() {
-                        callback.onSuccess(jarFileNode);
+                        callback.onSuccess(virtualFile);
                     }
                 }.schedule(300);
             }
@@ -766,9 +755,14 @@ public class DebuggerPresenter extends BasePresenter implements DebuggerView.Act
                 new Timer() {
                     @Override
                     public void run() {
-                        callback.onSuccess(jarFileNode);
+                        callback.onSuccess(virtualFile);
                     }
                 }.schedule(300);
+            }
+
+            @Override
+            public void onInitializationFailed() {
+                callback.onFailure(null);
             }
         });
     }
@@ -939,7 +933,8 @@ public class DebuggerPresenter extends BasePresenter implements DebuggerView.Act
         List<Breakpoint> breakpoints2Display = new ArrayList<Breakpoint>(breakpoints.size());
 
         for (Breakpoint breakpoint : breakpoints) {
-            FqnResolver resolver = resolverFactory.getResolver(breakpoint.getFile().getMediaType());
+            String mediaType = fileTypeRegistry.getFileTypeByFile(breakpoint.getFile()).getMimeTypes().get(0);
+            FqnResolver resolver = resolverFactory.getResolver(mediaType);
 
             breakpoints2Display.add(new Breakpoint(breakpoint.getType(), breakpoint.getLineNumber(), resolver == null
                                                                                                      ? breakpoint.getPath() : resolver

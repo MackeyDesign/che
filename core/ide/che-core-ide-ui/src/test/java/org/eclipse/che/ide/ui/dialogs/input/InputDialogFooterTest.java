@@ -12,6 +12,7 @@ package org.eclipse.che.ide.ui.dialogs.input;
 
 import org.eclipse.che.ide.ui.UILocalizationConstant;
 import org.eclipse.che.ide.ui.dialogs.BaseTest;
+
 import com.google.gwt.event.dom.client.ClickEvent;
 
 import org.junit.Before;
@@ -56,4 +57,5 @@ public class InputDialogFooterTest extends BaseTest {
 
         verify(actionDelegate).cancelled();
     }
+
 }

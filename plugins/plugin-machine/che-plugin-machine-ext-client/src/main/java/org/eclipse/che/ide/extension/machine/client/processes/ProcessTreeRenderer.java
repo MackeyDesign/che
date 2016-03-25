@@ -107,7 +107,7 @@ public class ProcessTreeRenderer implements NodeRenderer<ProcessTreeNode> {
                 locale.viewMachineRunningTooltip());
 
         SpanElement newTerminalButton = Elements.createSpanElement(resources.getCss().processButton());
-        newTerminalButton.setTextContent("+");
+        newTerminalButton.appendChild((Node)new SVGImage(resources.addTerminalIcon()).getElement());
         root.appendChild(newTerminalButton);
 
         Tooltip.create((elemental.dom.Element)newTerminalButton,
@@ -115,7 +115,7 @@ public class ProcessTreeRenderer implements NodeRenderer<ProcessTreeNode> {
                        MIDDLE,
                        locale.viewNewTerminalTooltip());
 
-        if (machine.getRuntime().getServers().containsKey(SSH_PORT)) {
+        if (machine.getRuntime().getServers().containsKey(SSH_PORT + "/tcp")) {
             SpanElement sshButton = Elements.createSpanElement(resources.getCss().sshButton());
             sshButton.setTextContent("SSH");
             root.appendChild(sshButton);
@@ -128,6 +128,11 @@ public class ProcessTreeRenderer implements NodeRenderer<ProcessTreeNode> {
                     }
                 }
             }, true);
+
+            Tooltip.create((elemental.dom.Element) sshButton,
+                    BOTTOM,
+                    MIDDLE,
+                    locale.connectViaSSH());
         }
 
         newTerminalButton.addEventListener(Event.CLICK, new EventListener() {

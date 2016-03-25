@@ -17,9 +17,6 @@ public interface CoreLocalizationConstant extends Messages {
     @Key("createProjectFromTemplate.nameField")
     String createProjectFromTemplateName();
 
-    @Key("createProjectFromTemplate.project.exists")
-    String createProjectFromTemplateProjectExists(String projectName);
-
     @Key("extension.title")
     String extensionTitle();
 
@@ -357,6 +354,18 @@ public interface CoreLocalizationConstant extends Messages {
     @Key("action.showHiddenFiles.description")
     String actionShowHiddenFilesDescription();
 
+    @Key("action.redirectToDashboardProjects.title")
+    String actionRedirectToDashboardProjectsTitle();
+
+    @Key("action.redirectToDashboardProjects.description")
+    String actionRedirectToDashboardProjectsDescription();
+
+    @Key("action.redirectToDashboardWorkspaces.title")
+    String actionRedirectToDashboardWorkspacesTitle();
+
+    @Key("action.redirectToDashboardWorkspaces.description")
+    String actionRedirectToDashboardWorkspacesDescription();
+
     /* NewResource */
     @Key("newResource.title")
     String newResourceTitle(String title);
@@ -453,8 +462,12 @@ public interface CoreLocalizationConstant extends Messages {
     @Key("action.completions.title")
     String actionCompetitionsTitle();
 
-    @Key("project.settings.title")
-    String projectSettingsTitle();
+    /* Preferences widget */
+    @Key("unable.to.save.preference")
+    String unableToSavePreference();
+
+    @Key("unable.to.load.preference")
+    String unableToLoadPreference();
 
     @Key("create.ws.title")
     String createWsTitle();
@@ -545,18 +558,6 @@ public interface CoreLocalizationConstant extends Messages {
 
     @Key("workspace.config.undefined")
     String workspaceConfigUndefined();
-
-    @Key("workspace.id.undefined")
-    String workspaceIdUndefined();
-
-    @Key("workspace.get.failed")
-    String workspaceGetFailed();
-
-    @Key("workspace.not.ready")
-    String workspaceNotReady(String workspaceId);
-
-    @Key("workspace.not.running")
-    String workspaceNotRunning();
 
     @Key("start.ws.error.title")
     String startWsErrorTitle();
@@ -769,4 +770,13 @@ public interface CoreLocalizationConstant extends Messages {
 
     @Key("error.configuration.content")
     String errorConfigurationContent();
+
+    @Key("show.reference")
+    String showReference();
+
+    @Key("reference.label")
+    String referenceLabel();
+
+    @Key("path.label")
+    String pathLabel();
 }

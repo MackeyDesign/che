@@ -19,8 +19,12 @@ import {ListProjectsWorkspaceFilter} from './list-projects/list-projects-filter-
 import {CreateProjectGit} from './create-project/git/create-project-git.directive';
 import {CreateProjectGitCtrl} from './create-project/git/create-project-git.controller';
 import {CreateProjectGithub} from './create-project/github/create-project-github.directive';
+import {AddSecretKeyNotificationCtrl} from './create-project/add-ssh-key-notification/add-ssh-key-notification.controller';
+import {NoGithubOauthDialogController} from './create-project/github/oauth-dialog/no-github-oauth-dialog.controller';
 import {CreateProjectSamplesCtrl} from './create-project/samples/create-project-samples.controller';
 import {CreateProjectSamples} from './create-project/samples/create-project-samples.directive';
+import {CreateProjectWorkspacesController} from './create-project/workspaces/create-project-workspaces.controller';
+import {CreateProjectWorkspaces} from './create-project/workspaces/create-project-workspaces.directive';
 
 import {CreateProjectSamplesFilter} from './create-project/samples/create-project-samples.filter';
 import {CreateProjectSamplesNameFilter} from './create-project/samples/create-project-samples-name.filter';
@@ -58,8 +62,15 @@ export class ProjectsConfig {
     register.controller('CreateProjectGithubCtrl', CreateProjectGithubCtrl);
     register.directive('createProjectGithub', CreateProjectGithub);
 
+    register.controller('NoGithubOauthDialogController', NoGithubOauthDialogController);
+
+    register.controller('AddSecretKeyNotificationCtrl', AddSecretKeyNotificationCtrl);
+
     register.controller('CreateProjectSamplesCtrl', CreateProjectSamplesCtrl);
     register.directive('createProjectSamples', CreateProjectSamples);
+
+    register.controller('CreateProjectWorkspacesController', CreateProjectWorkspacesController);
+    register.directive('createProjectWorkspaces', CreateProjectWorkspaces);
 
     register.directive('createProjectZip', CreateProjectZip);
 

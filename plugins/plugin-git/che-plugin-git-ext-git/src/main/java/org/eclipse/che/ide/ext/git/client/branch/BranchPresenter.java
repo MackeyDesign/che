@@ -10,8 +10,6 @@
  *******************************************************************************/
 package org.eclipse.che.ide.ext.git.client.branch;
 
-import com.google.gwt.json.client.JSONObject;
-import com.google.gwt.json.client.JSONParser;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.google.web.bindery.event.shared.EventBus;
@@ -274,7 +272,7 @@ public class BranchPresenter implements BranchView.ActionDelegate {
     }
 
     private void updateOpenedFiles() {
-        for (EditorPartPresenter editorPartPresenter : editorAgent.getOpenedEditors().values()) {
+        for (EditorPartPresenter editorPartPresenter : editorAgent.getOpenedEditors()) {
             final VirtualFile file = editorPartPresenter.getEditorInput().getFile();
             final String filePath = file.getPath();
             Unmarshallable<ItemReference> unmarshaller = dtoUnmarshallerFactory.newUnmarshaller(ItemReference.class);

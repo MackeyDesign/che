@@ -21,7 +21,7 @@ export class CreateProjectCtrl {
    * Default constructor that is using resource
    * @ngInject for Dependency injection
    */
-  constructor(cheAPI, cheStack, $websocket, $routeParams, $filter, $timeout, $location, $mdDialog, $scope, $rootScope, createProjectSvc, lodash, $q, $log) {
+  constructor(cheAPI, cheStack, $websocket, $routeParams, $filter, $timeout, $location, $mdDialog, $scope, $rootScope, createProjectSvc, lodash, $q, $log, $document) {
     this.$log = $log;
     this.cheAPI = cheAPI;
     this.cheStack = cheStack;
@@ -34,6 +34,7 @@ export class CreateProjectCtrl {
     this.createProjectSvc = createProjectSvc;
     this.lodash = lodash;
     this.$q = $q;
+    this.$document = $document;
 
     // JSON used for import data
     this.importProjectData = this.getDefaultProjectJson();
@@ -119,28 +120,24 @@ export class CreateProjectCtrl {
         default:
           $location.path('/create-project');
       }
-
     }
 
-    // fetch workspaces when initializing
-    let promise = cheAPI.getWorkspace().fetchWorkspaces();
-    promise.then(() => {
-        this.updateData();
-      },
-      (error) => {
-        // etag handling so also retrieve last data that were fetched before
+    if (cheStack.getStacks().length) {
+      this.updateWorkspaces();
+    } else {
+      cheStack.fetchStacks().then(() => {
+        this.updateWorkspaces();
+      }, (error) => {
         if (error.status === 304) {
-          // ok
-          this.updateData();
+          this.updateWorkspaces();
           return;
         }
         this.state = 'error';
       });
+    }
 
     // selected current tab
     this.currentTab = '';
-
-
     // all forms that we have
     this.forms = new Map();
 
@@ -168,32 +165,34 @@ export class CreateProjectCtrl {
       }
     });
 
-    this.isChangeableName = true;
-    this.isChangeableDescription = true;
-
-    $scope.$watch('createProjectCtrl.importProjectData.project.name', (newProjectName) => {
-
-      if (newProjectName === '') {
-        return;
-      }
-
-      if (!this.isChangeableName) {
-        return;
-      }
-      this.projectName = newProjectName;
-    });
-    $scope.$watch('createProjectCtrl.importProjectData.project.description', (newProjectDescription) => {
-      if (!this.isChangeableDescription) {
-        return;
-      }
-      this.projectDescription = newProjectDescription;
-    });
-
     // channels on which we will subscribe on the workspace bus websocket
     this.listeningChannels = [];
 
+    this.projectName = null;
+    this.projectDescription = null;
+    this.defaultWorkspaceName = null;
   }
 
+  /**
+   * Fetch workspaces when initializing
+   */
+  updateWorkspaces() {
+    this.workspaces = this.cheAPI.getWorkspace().getWorkspaces();
+      // fetch workspaces when initializing
+    let promise = this.cheAPI.getWorkspace().fetchWorkspaces();
+    promise.then(() => {
+        this.updateData();
+      },
+      (error) => {
+        // retrieve last data that were fetched before
+        if (error.status === 304) {
+          // ok
+          this.updateData();
+          return;
+        }
+        this.state = 'error';
+      });
+  }
 
   /**
    * Gets default project JSON used for import data
@@ -212,42 +211,33 @@ export class CreateProjectCtrl {
   }
 
   /**
-   * Check changeable status for project name field
-   */
-  checkChangeableNameStatus() {
-    if ('config' === this.currentTab) {
-      this.importProjectData.project.name = angular.copy(this.projectName);
-      return;
-    }
-    this.isChangeableName = this.projectName === this.importProjectData.project.name;
-  }
-
-  /**
-   * Check changeable status for project description field
-   */
-  checkChangeableDescriptionStatus() {
-    if ('config' === this.currentTab) {
-      this.importProjectData.project.description = angular.copy(this.projectDescription);
-      return;
-    }
-    this.isChangeableDescription = this.projectDescription === this.importProjectData.project.description;
-  }
-
-  /**
    * Fetching operation has been done, so get workspaces and websocket connection
    */
   updateData() {
-
-    this.workspaces = this.cheAPI.getWorkspace().getWorkspaces();
-
-    // generate project name
-    this.generateProjectName(true);
-
-    // init WS bus
-    if (this.workspaces.length > 0) {
-      this.messageBus = this.cheAPI.getWebsocket().getBus(this.workspaces[0].id);
+    this.workspaceResource = this.workspaces.length > 0 ? 'existing-workspace' : 'from-stack';
+    //if create project in progress and workspace have started
+    if (this.createProjectSvc.isCreateProjectInProgress() && this.createProjectSvc.getCurrentProgressStep() > 0) {
+      let workspaceName = this.createProjectSvc.getWorkspaceOfProject();
+      let findWorkspace = this.lodash.find(this.workspaces, (workspace) => {
+        return workspace.config.name === workspaceName;
+      });
+      //check current workspace
+      if (findWorkspace) {
+        // init WS bus
+        this.messageBus = this.cheAPI.getWebsocket().getBus(findWorkspace.id);
+      } else {
+        this.resetCreateProgress();
+      }
+    } else {
+      let preselectWorkspaceId = this.$location.search().workspaceId;
+      if (preselectWorkspaceId) {
+        this.workspaceSelected = this.lodash.find(this.workspaces, (workspace) => {
+          return workspace.id === preselectWorkspaceId;
+        });
+      }
+      // generate project name
+      this.generateProjectName(true);
     }
-
   }
 
   /**
@@ -279,8 +269,8 @@ export class CreateProjectCtrl {
    * @param gitHubRepository the repository selected
    */
   selectGitHubRepository(gitHubRepository) {
-    this.importProjectData.project.name = gitHubRepository.name;
-    this.importProjectData.project.description = gitHubRepository.description;
+    this.setProjectName(gitHubRepository.name);
+    this.setProjectDescription(gitHubRepository.description);
     this.importProjectData.source.location = gitHubRepository.clone_url;
   }
 
@@ -337,13 +327,9 @@ export class CreateProjectCtrl {
     } else if ('config' === tab) {
       this.importProjectData.project.type = 'blank';
       this.importProjectData.source.type = 'git';
-      // set name and description from input fields into object
-      if (!this.isChangeableDescription) {
-        this.importProjectData.project.description = angular.copy(this.projectDescription);
-      }
-      if (!this.isChangeableName) {
-        this.importProjectData.project.name = angular.copy(this.projectName);
-      }
+      //try to set default values
+      this.setProjectDescription(this.importProjectData.project.description);
+      this.setProjectName(this.importProjectData.project.name);
       this.refreshCM();
     }
     // github and samples tabs have broadcast selection events for isReady status
@@ -351,16 +337,15 @@ export class CreateProjectCtrl {
   }
 
 
-  startWorkspace(bus, data) {
-
+  startWorkspace(bus, workspace) {
     // then we've to start workspace
     this.createProjectSvc.setCurrentProgressStep(1);
-    let startWorkspacePromise = this.cheAPI.getWorkspace().startWorkspace(data.id, data.config.defaultEnv);
+    let startWorkspacePromise = this.cheAPI.getWorkspace().startWorkspace(workspace.id, workspace.config.defaultEnv);
 
-    startWorkspacePromise.then((data) => {
+    startWorkspacePromise.then((workspace) => {
       // get channels
-      let environments = data.config.environments;
-      let envName = data.config.defaultEnv;
+      let environments = workspace.config.environments;
+      let envName = workspace.config.defaultEnv;
       let defaultEnvironment = this.lodash.find(environments, (environment) => {
         return environment.name === envName;
       });
@@ -375,9 +360,9 @@ export class CreateProjectCtrl {
         return machineConfigsLink.rel === 'get machine logs channel';
       });
 
-      let workspaceId = data.id;
+      let workspaceId = workspace.id;
 
-      let agentChannel = 'workspace:' + data.id + ':ext-server:output';
+      let agentChannel = 'workspace:' + workspace.id + ':ext-server:output';
       let statusChannel = findStatusLink ? findStatusLink.parameters[0].defaultValue : null;
       let outputChannel = findOutputLink ? findOutputLink.parameters[0].defaultValue : null;
 
@@ -398,7 +383,7 @@ export class CreateProjectCtrl {
         // for now, display log of status channel in case of errors
         this.listeningChannels.push(statusChannel);
         bus.subscribe(statusChannel, (message) => {
-          if (message.eventType === 'DESTROYED' && message.workspaceId === data.id) {
+          if (message.eventType === 'DESTROYED' && message.workspaceId === workspace.id) {
             this.getCreationSteps()[this.getCurrentProgressStep()].hasError = true;
 
             // need to show the error
@@ -410,7 +395,7 @@ export class CreateProjectCtrl {
                 .ok('OK')
             );
           }
-          if (message.eventType === 'ERROR' && message.workspaceId === data.id) {
+          if (message.eventType === 'ERROR' && message.workspaceId === workspace.id) {
             this.getCreationSteps()[this.getCurrentProgressStep()].hasError = true;
             // need to show the error
             this.$mdDialog.show(
@@ -536,9 +521,9 @@ export class CreateProjectCtrl {
                   let resultEstimate = this.cheAPI.getProject().getEstimate(workspaceId, projectName, type);
                   // add attributes
                   // there is a matching estimate
-                  if (Object.keys(resultEstimate).length > 0 && 'java' !== type && !firstMatchingType) {
+                  if (Object.keys(resultEstimate.attributes).length > 0 && 'java' !== type && !firstMatchingType) {
                     firstMatchingType = type;
-                    firstMatchingResult = resultEstimate;
+                    firstMatchingResult = resultEstimate.attributes;
                   }
                 });
 
@@ -571,8 +556,11 @@ export class CreateProjectCtrl {
     }, (error) => {
       this.cleanupChannels(websocketStream, workspaceBus, bus, channel);
       this.getCreationSteps()[this.getCurrentProgressStep()].hasError = true;
-
-      // need to show the error
+      //if we have a SSH error
+      if (error.data.errorCode === 32068) {
+        this.showAddSecretKeyDialog(projectData.source.location, workspaceId);
+        return;
+      }
       this.$mdDialog.show(
         this.$mdDialog.alert()
           .title('Error while creating the project')
@@ -582,6 +570,25 @@ export class CreateProjectCtrl {
       );
     });
 
+  }
+
+  /**
+   * Show the add ssh key dialog
+   * @param repoURL  the repository URL
+   * @param workspaceId  the workspace IDL
+   */
+  showAddSecretKeyDialog(repoURL, workspaceId) {
+    let parentEl = angular.element(this.$document.body);
+
+    this.$mdDialog.show({
+      bindToController: true,
+      clickOutsideToClose: true,
+      controller: 'AddSecretKeyNotificationCtrl',
+      controllerAs: 'addSecretKeyNotificationCtrl',
+      locals: {repoURL: repoURL, workspaceId: workspaceId},
+      parent: parentEl,
+      templateUrl: 'app/projects/create-project/add-ssh-key-notification/add-ssh-key-notification.html'
+    });
   }
 
   /**
@@ -618,6 +625,24 @@ export class CreateProjectCtrl {
   addCommand(workspaceId, projectName, commands, index, deferred) {
     if (index < commands.length) {
       let newCommand = angular.copy(commands[index]);
+
+      // Update project command lines using current.project.path with actual path based on workspace runtime configuration
+      // so adding the same project twice allow to use commands for each project without first selecting project in tree
+      let workspaceConfig = this.cheAPI.getWorkspace().getRuntimeConfig(workspaceId);
+      if (workspaceConfig.devMachine) {
+        let runtime = workspaceConfig.devMachine.runtime;
+        if (runtime) {
+          let envVar = runtime.envVariables;
+          if (envVar) {
+            let cheProjectsRoot = envVar['CHE_PROJECTS_ROOT'];
+            if (cheProjectsRoot) {
+              // replace current project path by the full path of the project
+              let projectPath = cheProjectsRoot + '/' + projectName;
+              newCommand.commandLine = newCommand.commandLine.replace(/\$\{current.project.path\}/g, projectPath);
+            }
+          }
+        }
+      }
       newCommand.name = projectName + ': ' + newCommand.name;
       var addPromise = this.cheAPI.getWorkspace().addCommand(workspaceId, newCommand);
       addPromise.then(() => {
@@ -655,8 +680,12 @@ export class CreateProjectCtrl {
         // need to show the error
         this.$mdDialog.show(
           this.$mdDialog.alert()
-            .title('Unable to create project')
-            .content('Unable to connect to the remote extension server after workspace creation')
+            .title('Workspace Connection Error')
+            .content('It seems that your workspace is running, but we cannot connect your browser to it. This commonly happens when Che was' +
+            ' not configured properly. If your browser is connecting to workspaces running remotely, then you must start Che with the ' +
+            '--remote:<ip-address> flag where the <ip-address> is the IP address of the node that is running your Docker workspaces.' +
+            'Please restart Che with this flag. You can read about what this flag does and why it is essential at: ' +
+            'https://eclipse-che.readme.io/docs/configuration#envrionment-variables')
             .ariaLabel('Project creation')
             .ok('OK')
         );
@@ -677,6 +706,9 @@ export class CreateProjectCtrl {
     if ('image' === recipeSource.type) {
       // needs to add recipe for that script
       promise = this.submitRecipe('generated-' + stack.name, 'FROM ' + recipeSource.origin);
+    } else if ('recipe' === recipeSource.type) {
+
+      promise = this.submitRecipe('generated-' + stack.name, recipeSource.origin);
     } else {
       throw 'Not implemented';
     }
@@ -709,15 +741,9 @@ export class CreateProjectCtrl {
    * Call the create operation that may create or import a project
    */
   create() {
-
-    // set name and description for imported project
-    if (!this.isChangeableDescription) {
-      this.importProjectData.project.description = angular.copy(this.projectDescription);
-    }
-    if (!this.isChangeableName) {
-      this.importProjectData.project.name = angular.copy(this.projectName);
-    }
-    this.createProjectSvc.setProject(this.importProjectData.project.name);
+    this.importProjectData.project.description = this.projectDescription;
+    this.importProjectData.project.name = this.projectName;
+    this.createProjectSvc.setProject(this.projectName);
 
     if (this.templatesChoice === 'templates-wizard') {
       this.createProjectSvc.setIDEAction('createProject:projectName=' + this.projectName);
@@ -730,21 +756,27 @@ export class CreateProjectCtrl {
     this.createProjectSvc.createPopup();
 
     // logic to decide if we create workspace based on a stack or reuse existing workspace
-    var option;
-    this.stack = null;
-    if (this.stackTab === 'ready-to-go') {
-      option = 'create-workspace';
-      this.stack = this.readyToGoStack;
-    } else if (this.stackTab === 'stack-library') {
-      if (this.stackLibraryOption === 'existing-workspace') {
-        option = 'reuse-workspace';
-      } else {
-        this.stack = this.stackLibraryUser;
-        option = 'create-workspace';
-      }
-    } else if (this.stackTab === 'custom-stack') {
+    let option;
+
+    if (this.workspaceResource === 'existing-workspace') {
+      option = 'reuse-workspace';
+      this.recipeUrl = null;
       this.stack = null;
-      option = 'create-workspace';
+    } else {
+      switch (this.stackTab) {
+        case 'ready-to-go':
+          option = 'create-workspace';
+          this.stack = this.readyToGoStack;
+          break;
+        case 'stack-library':
+          option = 'create-workspace';
+          this.stack = this.stackLibraryUser;
+          break;
+        case 'custom-stack':
+          option = 'create-workspace';
+          this.stack = null;
+          break;
+      }
     }
     // check workspace is selected
     if (option === 'create-workspace') {
@@ -752,7 +784,7 @@ export class CreateProjectCtrl {
         // needs to get recipe URL from stack
         let promise = this.computeRecipeForStack(this.stack);
         promise.then((recipe) => {
-          let findLink = this.lodash.find(recipe.links, function (link) {
+          let findLink = this.lodash.find(recipe.links, (link) => {
             return link.rel === 'get recipe script';
           });
           if (findLink) {
@@ -778,37 +810,27 @@ export class CreateProjectCtrl {
           });
         }
       }
-
-
     } else {
       this.createProjectSvc.setWorkspaceOfProject(this.workspaceSelected.config.name);
-
       // Now that the container is started, wait for the extension server. For this, needs to get runtime details
       let promiseRuntime = this.cheAPI.getWorkspace().fetchRuntimeConfig(this.workspaceSelected.id);
-
       promiseRuntime.then(() => {
         let websocketUrl = this.cheAPI.getWorkspace().getWebsocketUrl(this.workspaceSelected.id);
-
         // Get bus
         let websocketStream = this.$websocket(websocketUrl);
-
         // on success, create project
         websocketStream.onOpen(() => {
           let bus = this.cheAPI.getWebsocket().getExistingBus(websocketStream);
-
           // mode
-          this.createProjectInWorkspace(this.workspaceSelected.id, this.importProjectData.project.name, this.importProjectData, bus);
+          this.createProjectInWorkspace(this.workspaceSelected.id, this.projectName, this.importProjectData, bus);
         });
-
       }, (error) => {
         if (error.data.message) {
           this.getCreationSteps()[this.getCurrentProgressStep()].logs = error.data.message;
         }
         this.getCreationSteps()[this.getCurrentProgressStep()].hasError = true;
       });
-
     }
-
     // do we have projects ?
     let projects = this.cheAPI.getProject().getAllProjects();
     if (projects.length > 1) {
@@ -816,7 +838,6 @@ export class CreateProjectCtrl {
       this.createProjectSvc.showPopup();
       this.$location.path('/projects');
     }
-
   }
 
   /**
@@ -825,41 +846,50 @@ export class CreateProjectCtrl {
   createWorkspace() {
     this.createProjectSvc.setWorkspaceOfProject(this.workspaceName);
     let attributes = this.stack ? {stackId: this.stack.id} : {};
-
     //TODO: no account in che ? it's null when testing on localhost
     let creationPromise = this.cheAPI.getWorkspace().createWorkspace(null, this.workspaceName, this.recipeUrl, this.workspaceRam, attributes);
-    creationPromise.then((data) => {
-
+    creationPromise.then((workspace) => {
       // init message bus if not there
       if (this.workspaces.length === 0) {
-        this.messageBus = this.cheAPI.getWebsocket().getBus(data.id);
+        this.messageBus = this.cheAPI.getWebsocket().getBus(workspace.id);
       }
-
       // recipe url
-      let bus = this.cheAPI.getWebsocket().getBus(data.id);
-
+      let bus = this.cheAPI.getWebsocket().getBus(workspace.id);
       // subscribe to workspace events
-      let workspaceChannel = 'workspace:' + data.id;
+      let workspaceChannel = 'workspace:' + workspace.id;
       this.listeningChannels.push(workspaceChannel);
       bus.subscribe(workspaceChannel, (message) => {
 
-        if (message.eventType === 'RUNNING' && message.workspaceId === data.id) {
+        if (message.eventType === 'ERROR' && message.workspaceId === workspace.id) {
+          this.createProjectSvc.setCurrentProgressStep(2);
+          this.getCreationSteps()[this.getCurrentProgressStep()].hasError = true;
+          // need to show the error
+          this.$mdDialog.show(
+            this.$mdDialog.alert()
+              .title('Error when starting agent')
+              .content('Unable to start workspace agent. Error when trying to start the workspace agent: ' + message.error)
+              .ariaLabel('Workspace agent start')
+              .ok('OK')
+          );
+        }
+
+        if (message.eventType === 'RUNNING' && message.workspaceId === workspace.id) {
           this.createProjectSvc.setCurrentProgressStep(2);
 
           this.importProjectData.project.name = this.projectName;
 
-          let promiseRuntime = this.cheAPI.getWorkspace().fetchRuntimeConfig(data.id);
+          let promiseRuntime = this.cheAPI.getWorkspace().fetchRuntimeConfig(workspace.id);
           promiseRuntime.then(() => {
-            let websocketUrl = this.cheAPI.getWorkspace().getWebsocketUrl(data.id);
+            let websocketUrl = this.cheAPI.getWorkspace().getWebsocketUrl(workspace.id);
             // try to connect
-            this.websocketReconnect = 50;
-            this.connectToExtensionServer(websocketUrl, data.id, this.importProjectData.project.name, this.importProjectData, bus);
+            this.websocketReconnect = 10;
+            this.connectToExtensionServer(websocketUrl, workspace.id, this.importProjectData.project.name, this.importProjectData, bus);
 
           });
         }
       });
       this.$timeout(() => {
-        this.startWorkspace(bus, data);
+        this.startWorkspace(bus, workspace);
       }, 1000);
 
     }, (error) => {
@@ -890,8 +920,7 @@ export class CreateProjectCtrl {
 
       name = name + '-' + (('0000' + (Math.random() * Math.pow(36, 4) << 0).toString(36)).slice(-4)); // jshint ignore:line
 
-      this.importProjectData.project.name = name;
-      this.projectName = name;
+      this.setProjectName(name);
     }
 
   }
@@ -901,9 +930,9 @@ export class CreateProjectCtrl {
    */
   generateWorkspaceName() {
     // starts with wksp
-    var name = 'wksp';
-    name = name + '-' + (('0000' + (Math.random() * Math.pow(36, 4) << 0).toString(36)).slice(-4)); // jshint ignore:line
-    this.workspaceName = name;
+    let name = 'wksp';
+    name += '-' + (('0000' + (Math.random() * Math.pow(36, 4) << 0).toString(36)).slice(-4)); // jshint ignore:line
+    this.setWorkspaceName(name);
   }
 
   isImporting() {
@@ -997,34 +1026,28 @@ export class CreateProjectCtrl {
 
   setStackTab(stackTab) {
     this.stackTab = stackTab;
-
-    let currentStack = null;
-    if (this.stackTab === 'ready-to-go') {
-      currentStack = this.readyToGoStack;
-    } else if (this.stackTab === 'stack-library' && this.stackLibraryOption === 'new-workspace') {
-      currentStack = this.stackLibraryUser;
-    }
-    this.updateCurrentStack(currentStack);
-
-    this.checkDisabledWorkspace();
   }
 
   /**
-   * Use of an existing workspace
-   * @param workspace the workspace to use
+   * Update data for selected workspace
    */
-  cheStackLibraryWorkspaceSelecter(workspace) {
-    this.workspaceSelected = workspace;
-    this.workspaceName = workspace.config.name;
-    this.stackLibraryOption = 'existing-workspace';
+  onWorkspaceChange() {
+    if (!this.workspaceSelected) {
+      return;
+    }
+    this.setWorkspaceName(this.workspaceSelected.config.name);
     let stack = null;
-    if (workspace.attributes && workspace.attributes.stackId) {
-      let stackId = workspace.attributes.stackId;
-      stack = this.cheStack.getStackById(stackId);
+    if (this.workspaceSelected.config.attributes && this.workspaceSelected.config.attributes.stackId) {
+      stack = this.cheStack.getStackById(this.workspaceSelected.config.attributes.stackId);
     }
     this.updateCurrentStack(stack);
-    this.generateProjectName(true);
-    this.checkDisabledWorkspace();
+    let findEnvironment = this.lodash.find(this.workspaceSelected.config.environments, (environment) => {
+      return environment.name === this.workspaceSelected.config.defaultEnv;
+    });
+    if (findEnvironment) {
+      this.workspaceRam = findEnvironment.machineConfigs[0].limits.ram;
+    }
+    this.updateWorkspaceStatus(true);
   }
 
   /**
@@ -1032,20 +1055,26 @@ export class CreateProjectCtrl {
    * @param stack the stack to use
    */
   cheStackLibrarySelecter(stack) {
-    this.stackLibraryUser = stack;
-    this.stackLibraryOption = 'new-workspace';
-
+    if (this.workspaceResource === 'existing-workspace') {
+      return;
+    }
+    if (this.stackTab === 'ready-to-go') {
+      this.readyToGoStack = angular.copy(stack);
+    } else if (this.stackTab === 'stack-library') {
+      this.stackLibraryUser = angular.copy(stack);
+    }
     this.updateCurrentStack(stack);
-    this.checkDisabledWorkspace();
+    this.updateWorkspaceStatus(false);
   }
 
-  checkDisabledWorkspace() {
-    let val = this.stackLibraryOption === 'existing-workspace' && this.stackTab === 'stack-library';
-    // if workspace can be configured, generate a new workspace name
-    if (!val) {
+  updateWorkspaceStatus(isExistingWorkspace) {
+    if (isExistingWorkspace) {
+      this.stackLibraryOption = 'existing-workspace';
+    } else {
+      this.stackLibraryOption = 'new-workspace';
       this.generateWorkspaceName();
     }
-    this.$rootScope.$broadcast('chePanel:disabled', {id: 'create-project-workspace', disabled: val});
+    this.$rootScope.$broadcast('chePanel:disabled', {id: 'create-project-workspace', disabled: isExistingWorkspace});
   }
 
   /**
@@ -1058,30 +1087,71 @@ export class CreateProjectCtrl {
     if (!stack) {
       return;
     }
-    if (this.stackTab === 'ready-to-go') {
-      this.readyToGoStack = stack;
-    }
     this.templatesChoice = 'templates-samples';
     this.generateProjectName(true);
-    this.importProjectData.project.description = '';
-
     // Enable wizard only if
     // - ready-to-go-stack with PT
     // - custom stack
-    if (stack != null && 'general' === stack.scope) {
-      if ('Java' === stack.name) {
-        this.enableWizardProject = true;
-      } else {
-        this.enableWizardProject = false;
-      }
-    } else {
+    if (stack === null || 'general' !== stack.scope) {
       this.enableWizardProject = true;
+      return;
     }
-
+    this.enableWizardProject  = 'Java' === stack.name;
   }
 
   selectWizardProject() {
     this.importProjectData.source.location = '';
   }
 
+  /**
+   * Set workspace name
+   * @param name
+   */
+  setWorkspaceName(name) {
+    if (!name) {
+      return;
+    }
+    if (!this.defaultWorkspaceName || this.defaultWorkspaceName === this.workspaceName) {
+      this.defaultWorkspaceName = name;
+      this.workspaceName = angular.copy(name);
+    }
+  }
+
+  /**
+   * Set project name
+   * @param name
+   */
+  setProjectName(name) {
+    if (!name) {
+      return;
+    }
+    if (!this.projectName || !this.defaultProjectName || this.defaultProjectName === this.projectName) {
+      this.defaultProjectName = name;
+      this.projectName = angular.copy(name);
+    }
+    this.importProjectData.project.name = this.projectName;
+  }
+
+  /**
+   * Set project description
+   * @param description
+   */
+  setProjectDescription(description) {
+    if (!description) {
+      return;
+    }
+    if (!this.projectDescription || !this.defaultProjectDescription || this.defaultProjectDescription === this.projectDescription) {
+      this.defaultProjectDescription = description;
+      this.projectDescription = angular.copy(description);
+    }
+    this.importProjectData.project.description = this.projectDescription;
+  }
+
+  downloadLogs() {
+    let logs = '';
+    this.getCreationSteps().forEach((step) => {
+      logs += step.logs + '\n';
+    });
+    window.open('data:text/csv,' + encodeURIComponent(logs));
+  }
 }

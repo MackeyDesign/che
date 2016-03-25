@@ -13,6 +13,7 @@ package org.eclipse.che.ide.ui.dialogs.choice;
 import javax.validation.constraints.NotNull;
 
 import org.eclipse.che.ide.ui.window.Window;
+
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.uibinder.client.UiBinder;
 import com.google.gwt.uibinder.client.UiField;
@@ -23,7 +24,7 @@ import com.google.inject.Inject;
 
 /**
  * Implementation of the choice dialog view.
- * 
+ *
  * @author Mickaël Leduque
  * @author Artem Zatsarynnyi
  */
@@ -54,12 +55,13 @@ public class ChoiceDialogViewImpl extends Window implements ChoiceDialogView {
     }
 
     @Override
-    protected void onClose() {
+    protected void onEnterClicked() {
+        delegate.onEnterClicked();
     }
 
     @Override
     public void showDialog() {
-        this.show();
+        this.show(footer.firstChoiceButton);
     }
 
     @Override
@@ -89,6 +91,21 @@ public class ChoiceDialogViewImpl extends Window implements ChoiceDialogView {
     public void setThirdChoiceLabel(final String thirdChoiceLabel) {
         footer.thirdChoiceButton.setText(thirdChoiceLabel);
         footer.thirdChoiceButton.setVisible(!thirdChoiceLabel.isEmpty());
+    }
+
+    @Override
+    public boolean isFirstButtonInFocus() {
+        return isWidgetFocused(footer.firstChoiceButton);
+    }
+
+    @Override
+    public boolean isSecondButtonInFocus() {
+        return isWidgetFocused(footer.secondChoiceButton);
+    }
+
+    @Override
+    public boolean isThirdButtonInFocus() {
+        return isWidgetFocused(footer.thirdChoiceButton);
     }
 
     /** The UI binder interface for this components. */

@@ -19,6 +19,7 @@ import com.google.inject.Inject;
 import org.eclipse.che.api.core.NotFoundException;
 import org.eclipse.che.api.core.model.machine.Machine;
 import org.eclipse.che.api.core.model.machine.Recipe;
+import org.eclipse.che.api.core.model.machine.ServerConf;
 import org.eclipse.che.api.core.util.FileCleaner;
 import org.eclipse.che.api.core.util.LineConsumer;
 import org.eclipse.che.api.core.util.SystemInfo;
@@ -47,13 +48,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.inject.Named;
+import javax.ws.rs.core.UriBuilder;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -78,14 +82,12 @@ public class DockerInstanceProvider implements InstanceProvider {
     private final boolean                          doForcePullOnBuild;
     private final Set<String>                      supportedRecipeTypes;
     private final DockerMachineFactory             dockerMachineFactory;
-    private final Map<String, String>              devMachineContainerLabels;
-    private final Map<String, String>              commonMachineContainerLabels;
     private final Map<String, Map<String, String>> devMachinePortsToExpose;
     private final Map<String, Map<String, String>> commonMachinePortsToExpose;
     private final String[]                         devMachineSystemVolumes;
     private final String[]                         commonMachineSystemVolumes;
-    private final String[]                         devMachineEnvVariables;
-    private final String[]                         commonMachineEnvVariables;
+    private final Set<String>                      devMachineEnvVariables;
+    private final Set<String>                      commonMachineEnvVariables;
     private final String[]                         allMachinesExtraHosts;
     private final String                           projectFolderPath;
 
@@ -127,30 +129,22 @@ public class DockerInstanceProvider implements InstanceProvider {
 
         this.devMachinePortsToExpose = Maps.newHashMapWithExpectedSize(allMachinesServers.size() + devMachineServers.size());
         this.commonMachinePortsToExpose = Maps.newHashMapWithExpectedSize(allMachinesServers.size());
-        this.devMachineContainerLabels = Maps.newHashMapWithExpectedSize(2 * allMachinesServers.size() + 2 * devMachineServers.size());
-        this.commonMachineContainerLabels = Maps.newHashMapWithExpectedSize(2 * allMachinesServers.size());
         for (ServerConf serverConf : devMachineServers) {
-            devMachinePortsToExpose.put(serverConf.getPort(), Collections.<String, String>emptyMap());
-            devMachineContainerLabels.put("che:server:" + serverConf.getPort() + ":ref", serverConf.getRef());
-            devMachineContainerLabels.put("che:server:" + serverConf.getPort() + ":protocol", serverConf.getProtocol());
+            devMachinePortsToExpose.put(serverConf.getPort(), Collections.emptyMap());
         }
         for (ServerConf serverConf : allMachinesServers) {
-            commonMachinePortsToExpose.put(serverConf.getPort(), Collections.<String, String>emptyMap());
-            devMachinePortsToExpose.put(serverConf.getPort(), Collections.<String, String>emptyMap());
-            commonMachineContainerLabels.put("che:server:" + serverConf.getPort() + ":ref", serverConf.getRef());
-            devMachineContainerLabels.put("che:server:" + serverConf.getPort() + ":ref", serverConf.getRef());
-            commonMachineContainerLabels.put("che:server:" + serverConf.getPort() + ":protocol", serverConf.getProtocol());
-            devMachineContainerLabels.put("che:server:" + serverConf.getPort() + ":protocol", serverConf.getProtocol());
+            commonMachinePortsToExpose.put(serverConf.getPort(), Collections.emptyMap());
+            devMachinePortsToExpose.put(serverConf.getPort(), Collections.emptyMap());
         }
 
         allMachinesEnvVariables = filterEmptyAndNullValues(allMachinesEnvVariables);
         devMachineEnvVariables = filterEmptyAndNullValues(devMachineEnvVariables);
-        this.commonMachineEnvVariables = allMachinesEnvVariables.toArray(new String[allMachinesEnvVariables.size()]);
+        this.commonMachineEnvVariables = allMachinesEnvVariables;
         final HashSet<String> envVariablesForDevMachine = Sets.newHashSetWithExpectedSize(allMachinesEnvVariables.size() +
                                                                                           devMachineEnvVariables.size());
         envVariablesForDevMachine.addAll(allMachinesEnvVariables);
         envVariablesForDevMachine.addAll(devMachineEnvVariables);
-        this.devMachineEnvVariables = envVariablesForDevMachine.toArray(new String[envVariablesForDevMachine.size()]);
+        this.devMachineEnvVariables = envVariablesForDevMachine;
 
         // always add the docker host
         String dockerHost = DockerInstanceRuntimeInfo.CHE_HOST.concat(":").concat(dockerConnectorConfiguration.getDockerHostIp());
@@ -264,7 +258,8 @@ public class DockerInstanceProvider implements InstanceProvider {
             throw new InvalidRecipeException("Unable build docker based machine, Dockerfile found but it doesn't contain base image.");
         }
         if (dockerfile.getImages().size() > 1) {
-            throw new InvalidRecipeException("Unable build docker based machine, Dockerfile found but it contains more than one instruction 'FROM'.");
+            throw new InvalidRecipeException(
+                    "Unable build docker based machine, Dockerfile found but it contains more than one instruction 'FROM'.");
         }
         return dockerfile;
     }
@@ -344,7 +339,6 @@ public class DockerInstanceProvider implements InstanceProvider {
         }
     }
 
-    // TODO rework in accordance with v2 docker registry API
     @Override
     public void removeInstanceSnapshot(InstanceKey instanceKey) throws SnapshotException {
         // use registry API directly because docker doesn't have such API yet
@@ -353,27 +347,30 @@ public class DockerInstanceProvider implements InstanceProvider {
         String registry = dockerInstanceKey.getRegistry();
         String repository = dockerInstanceKey.getRepository();
         if (registry == null || repository == null) {
+            LOG.error("Failed to remove instance snapshot: invalid instance key: {}", instanceKey);
             throw new SnapshotException("Snapshot removing failed. Snapshot attributes are not valid");
         }
 
-        StringBuilder sb = new StringBuilder("http://");// TODO make possible to use https here
-        sb.append(registry).append("/v1/repositories/");
-        sb.append(repository);
-        sb.append("/");// do not remove! Doesn't work without this slash
         try {
-            final HttpURLConnection conn = (HttpURLConnection)new URL(sb.toString()).openConnection();
+            URL url = UriBuilder.fromUri("http://" + registry) // TODO make possible to use https here
+                                .path("/v2/{repository}/manifests/{digest}")
+                                .build(repository, dockerInstanceKey.getDigest())
+                                .toURL();
+            final HttpURLConnection conn = (HttpURLConnection)url.openConnection();
             try {
                 conn.setConnectTimeout(30 * 1000);
                 conn.setRequestMethod("DELETE");
-                // fixme add auth header for secured registry
-//                conn.setRequestProperty("Authorization", authHeader);
+                // TODO add auth header for secured registry
+                // conn.setRequestProperty("Authorization", authHeader);
                 final int responseCode = conn.getResponseCode();
                 if ((responseCode / 100) != 2) {
                     InputStream in = conn.getErrorStream();
                     if (in == null) {
                         in = conn.getInputStream();
                     }
-                    LOG.error(IoUtil.readAndCloseQuietly(in));
+                    LOG.error("An error occurred while deleting snapshot with url: {}\nError stream: {}",
+                              url,
+                              IoUtil.readAndCloseQuietly(in));
                     throw new SnapshotException("Internal server error occurs. Can't remove snapshot");
                 }
             } finally {
@@ -390,30 +387,37 @@ public class DockerInstanceProvider implements InstanceProvider {
                                     LineConsumer outputConsumer)
             throws MachineException {
         try {
-            final Map<String, String> labels;
             final Map<String, Map<String, String>> portsToExpose;
             final String[] volumes;
-            final String[] env;
+            final List<String> env;
             if (machine.getConfig().isDev()) {
-                labels = devMachineContainerLabels;
-                portsToExpose = devMachinePortsToExpose;
+                portsToExpose = new HashMap<>(devMachinePortsToExpose);
 
-                final String projectFolderVolume = String.format("%s:%s",
+                final String projectFolderVolume = String.format("%s:%s:Z",
                                                                  workspaceFolderPathProvider.getPath(machine.getWorkspaceId()),
                                                                  projectFolderPath);
                 volumes = ObjectArrays.concat(devMachineSystemVolumes,
                                               SystemInfo.isWindows() ? escapePath(projectFolderVolume) : projectFolderVolume);
 
-                String[] vars = {DockerInstanceRuntimeInfo.CHE_WORKSPACE_ID + '=' + machine.getWorkspaceId(),
-                                 DockerInstanceRuntimeInfo.USER_TOKEN + '=' + EnvironmentContext.getCurrent().getUser().getToken()};
-                env = ObjectArrays.concat(devMachineEnvVariables, vars, String.class);
-
+                env = new ArrayList<>(devMachineEnvVariables);
+                env.add(DockerInstanceRuntimeInfo.CHE_WORKSPACE_ID + '=' + machine.getWorkspaceId());
+                env.add(DockerInstanceRuntimeInfo.USER_TOKEN + '=' + EnvironmentContext.getCurrent().getUser().getToken());
             } else {
-                labels = commonMachineContainerLabels;
-                portsToExpose = commonMachinePortsToExpose;
+                portsToExpose = new HashMap<>(commonMachinePortsToExpose);
                 volumes = commonMachineSystemVolumes;
-                env = commonMachineEnvVariables;
+                env = new ArrayList<>(commonMachineEnvVariables);
             }
+            machine.getConfig()
+                   .getServers()
+                   .stream()
+                   .forEach(serverConf -> portsToExpose.put(serverConf.getPort(), Collections.emptyMap()));
+
+            machine.getConfig()
+                   .getEnvVariables()
+                   .entrySet()
+                   .stream()
+                   .map(entry -> entry.getKey() + "=" + entry.getValue())
+                   .forEach(env::add);
 
             final HostConfig hostConfig = new HostConfig().withBinds(volumes)
                                                           .withExtraHosts(allMachinesExtraHosts)
@@ -421,10 +425,9 @@ public class DockerInstanceProvider implements InstanceProvider {
                                                           .withMemorySwap(-1)
                                                           .withMemory((long)machine.getConfig().getLimits().getRam() * 1024 * 1024);
             final ContainerConfig config = new ContainerConfig().withImage(imageName)
-                                                                .withLabels(labels)
                                                                 .withExposedPorts(portsToExpose)
                                                                 .withHostConfig(hostConfig)
-                                                                .withEnv(env);
+                                                                .withEnv(env.toArray(new String[env.size()]));
 
             final String containerId = docker.createContainer(config, containerName).getId();
 
@@ -452,7 +455,7 @@ public class DockerInstanceProvider implements InstanceProvider {
         final String containerName = userName + '_' + workspaceId + '_' + displayName + '_';
 
         // removing all not allowed characters + generating random name suffix
-        return NameGenerator.generate(containerName.replaceAll("[^a-zA-Z0-9_-]+", ""), 5);
+        return NameGenerator.generate(containerName.toLowerCase().replaceAll("[^a-z0-9_-]+", ""), 5);
     }
 
     /**

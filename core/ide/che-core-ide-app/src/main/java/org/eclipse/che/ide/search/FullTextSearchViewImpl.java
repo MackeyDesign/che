@@ -61,8 +61,12 @@ public class FullTextSearchViewImpl extends Window implements FullTextSearchView
     @UiField
     Button   selectPathButton;
 
+    Button cancelButton;
+    Button acceptButton;
+
     private ActionDelegate delegate;
-    private Button         accept;
+
+    private final SelectPathPresenter selectPathPresenter;
 
     @Inject
     public FullTextSearchViewImpl(CoreLocalizationConstant locale,
@@ -71,6 +75,7 @@ public class FullTextSearchViewImpl extends Window implements FullTextSearchView
                                   AppContext appContext) {
         this.locale = locale;
         this.appContext = appContext;
+        this.selectPathPresenter = selectPathPresenter;
 
         setTitle(locale.textSearchTitle());
 
@@ -78,7 +83,7 @@ public class FullTextSearchViewImpl extends Window implements FullTextSearchView
         setWidget(widget);
 
         createButtons();
-        addHandlers(selectPathPresenter);
+        addHandlers();
     }
 
     @Override
@@ -93,7 +98,7 @@ public class FullTextSearchViewImpl extends Window implements FullTextSearchView
 
     @Override
     public void showDialog() {
-        accept.setEnabled(false);
+        acceptButton.setEnabled(false);
         isUseFileMask.setValue(false);
         filesMask.setEnabled(false);
         isUseDirectory.setValue(false);
@@ -120,6 +125,11 @@ public class FullTextSearchViewImpl extends Window implements FullTextSearchView
     }
 
     @Override
+    public String getSearchText() {
+        return text.getText();
+    }
+
+    @Override
     public String getFileMask() {
         return isUseFileMask.getValue() ? filesMask.getText() : "";
     }
@@ -135,15 +145,8 @@ public class FullTextSearchViewImpl extends Window implements FullTextSearchView
     }
 
     @Override
-    protected void onClose() {
-        //Do nothing
-    }
-
-    @Override
     protected void onEnterClicked() {
-        if (!text.getText().isEmpty()) {
-            delegate.search(text.getText());
-        }
+        delegate.onEnterClicked();
     }
 
     @Override
@@ -153,29 +156,49 @@ public class FullTextSearchViewImpl extends Window implements FullTextSearchView
 
     @Override
     public void setFocus() {
-        accept.setFocus(true);
+        acceptButton.setFocus(true);
+    }
+
+    @Override
+    public boolean isAcceptButtonInFocus() {
+        return isWidgetFocused(acceptButton);
+    }
+
+    @Override
+    public boolean isCancelButtonInFocus() {
+        return isWidgetFocused(cancelButton);
+    }
+
+    @Override
+    public boolean isSelectPathButtonInFocus() {
+        return isWidgetFocused(selectPathButton);
+    }
+
+    @Override
+    public void showSelectPathDialog() {
+        selectPathPresenter.show(delegate);
     }
 
     private void createButtons() {
-        Button cancel = createButton(locale.cancel(), "search-cancel-button", new ClickHandler() {
+        cancelButton = createButton(locale.cancel(), "search-cancel-button", new ClickHandler() {
             @Override
             public void onClick(ClickEvent event) {
-                hide();
+                close();
             }
         });
 
-        accept = createPrimaryButton(locale.search(), "search-button", new ClickHandler() {
+        acceptButton = createPrimaryButton(locale.search(), "search-button", new ClickHandler() {
             @Override
             public void onClick(ClickEvent event) {
                 delegate.search(text.getText());
             }
         });
 
-        addButtonToFooter(accept);
-        addButtonToFooter(cancel);
+        addButtonToFooter(acceptButton);
+        addButtonToFooter(cancelButton);
     }
 
-    private void addHandlers(final SelectPathPresenter selectPathPresenter) {
+    private void addHandlers() {
         isUseFileMask.addValueChangeHandler(new ValueChangeHandler<Boolean>() {
             @Override
             public void onValueChange(ValueChangeEvent<Boolean> event) {
@@ -194,16 +217,15 @@ public class FullTextSearchViewImpl extends Window implements FullTextSearchView
         text.addKeyUpHandler(new KeyUpHandler() {
             @Override
             public void onKeyUp(KeyUpEvent event) {
-                accept.setEnabled(!text.getValue().isEmpty());
+                acceptButton.setEnabled(!text.getValue().isEmpty());
             }
         });
 
         selectPathButton.addClickHandler(new ClickHandler() {
             @Override
             public void onClick(ClickEvent event) {
-                selectPathPresenter.show(delegate);
+                showSelectPathDialog();
             }
         });
     }
-
 }

@@ -11,6 +11,7 @@
 package org.eclipse.che.ide.ui.dialogs.confirm;
 
 import org.eclipse.che.ide.ui.window.Window;
+
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.uibinder.client.UiBinder;
 import com.google.gwt.uibinder.client.UiField;
@@ -50,21 +51,17 @@ public class ConfirmDialogViewImpl extends Window implements ConfirmDialogView {
     @Override
     public void setDelegate(final ActionDelegate delegate) {
         this.delegate = delegate;
-        this.footer.setDelegate(this.delegate);
-    }
-
-    @Override
-    protected void onClose() {
+        this.footer.setDelegate(delegate);
     }
 
     @Override
     protected void onEnterClicked() {
-        delegate.accepted();
+        delegate.onEnterClicked();
     }
 
     @Override
     public void showDialog() {
-        this.show();
+        this.show(footer.okButton);
     }
 
     @Override
@@ -84,6 +81,16 @@ public class ConfirmDialogViewImpl extends Window implements ConfirmDialogView {
 
     public void setCancelButtonLabel(String label) {
         footer.setCancelButtonLabel(label);
+    }
+
+    @Override
+    public boolean isOkButtonInFocus() {
+        return isWidgetFocused(footer.okButton);
+    }
+
+    @Override
+    public boolean isCancelButtonInFocus() {
+        return isWidgetFocused(footer.cancelButton);
     }
 
     /** The UI binder interface for this components. */

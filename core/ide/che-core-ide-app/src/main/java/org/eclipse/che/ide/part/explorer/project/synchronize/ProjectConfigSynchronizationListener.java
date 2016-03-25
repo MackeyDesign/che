@@ -101,6 +101,9 @@ public class ProjectConfigSynchronizationListener implements BeforeExpandNodeEve
 
     @Override
     public void onBeforeExpand(final BeforeExpandNodeEvent event) {
+        if (appContext.getFactory() != null) {
+            return;
+        }
         Node expandedNode = event.getNode();
 
         if (!(expandedNode instanceof ProjectNode)) {
@@ -229,7 +232,7 @@ public class ProjectConfigSynchronizationListener implements BeforeExpandNodeEve
     }
 
     private void importProject() {
-        projectImporter.checkFolderExistenceAndImport(new Wizard.CompleteCallback() {
+        projectImporter.importProject(new Wizard.CompleteCallback() {
             @Override
             public void onCompleted() {
                 Log.info(getClass(), "Project " + projectConfig.getName() + " imported.");
