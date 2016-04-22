@@ -15,7 +15,7 @@ import org.eclipse.che.api.core.ForbiddenException;
 import org.eclipse.che.api.core.NotFoundException;
 import org.eclipse.che.api.core.ServerException;
 import org.eclipse.che.api.core.model.project.ProjectConfig;
-import org.eclipse.che.api.core.model.workspace.UsersWorkspace;
+import org.eclipse.che.api.core.model.workspace.Workspace;
 import org.eclipse.che.api.core.model.workspace.WorkspaceConfig;
 import org.eclipse.che.api.project.server.handlers.ProjectHandlerRegistry;
 import org.eclipse.che.api.project.server.handlers.ProjectInitHandler;
@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -61,7 +62,7 @@ public class ProjectRegistry {
                            VirtualFileSystemProvider vfsProvider,
                            ProjectTypeRegistry projectTypeRegistry,
                            ProjectHandlerRegistry handlers) throws ServerException {
-        this.projects = new HashMap<>();
+        this.projects = new ConcurrentHashMap<>();
         this.workspaceHolder = workspaceHolder;
         this.vfs = vfsProvider.getVirtualFileSystem();
         this.projectTypeRegistry = projectTypeRegistry;
@@ -71,7 +72,7 @@ public class ProjectRegistry {
 
     @PostConstruct
     public void initProjects() throws ConflictException, NotFoundException, ServerException, ForbiddenException {
-        final UsersWorkspace workspace = workspaceHolder.getWorkspace();
+        final Workspace workspace = workspaceHolder.getWorkspace();
 
         List<? extends ProjectConfig> projectConfigs = new ArrayList<>(workspace.getConfig().getProjects());
 
@@ -210,6 +211,9 @@ public class ProjectRegistry {
             } else {
                 workspaceHolder.addProject(project);
             }
+        } else if (config == null) {
+            // initializing project from unconfigured folder during #initProjects()
+            workspaceHolder.addProject(project);
         }
 
         return project;

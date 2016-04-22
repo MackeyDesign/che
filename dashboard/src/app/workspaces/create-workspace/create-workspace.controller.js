@@ -72,9 +72,11 @@ export class CreateWorkspaceCtrl {
    * @param stack  the selected stack
    */
   cheStackLibrarySelecter(stack) {
-    this.recipeUrl = null;
-    this.isCustomStack = false;
-    if (this.stack !== stack && stack.workspaceConfig && stack.workspaceConfig.name) {
+    if (stack) {
+      this.isCustomStack = false;
+      this.recipeUrl = null;
+    }
+    if (this.stack !== stack && stack && stack.workspaceConfig && stack.workspaceConfig.name) {
       this.setWorkspaceName(stack.workspaceConfig.name);
     } else {
       this.generateWorkspaceName();
@@ -168,11 +170,11 @@ export class CreateWorkspaceCtrl {
     let recipeName = 'generated-' + stack.name;
     let recipeScript;
     // what is type of source ?
-    switch (recipeSource.type) {
+    switch (recipeSource.type.toLowerCase()) {
       case 'image':
         recipeScript = 'FROM ' + recipeSource.origin;
         break;
-      case 'recipe':
+      case 'dockerfile':
         recipeScript = recipeSource.origin;
         break;
       default:
