@@ -1,32 +1,12 @@
-FROM ubuntu
-RUN apt-get update && apt-get -y install curl sudo procps wget && \
-    echo "%sudo ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
-    useradd -u 1000 -G users,sudo -d /home/user --shell /bin/bash -m user && \
-    echo "secret\nsecret" | passwd user && \
-    curl -sSL https://get.docker.com/ | sh && \
-    usermod -aG docker user && sudo apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# This is a comment
+FROM codenvy/ubuntu_jdk8
+MAINTAINER Randika Navagamuwa <randika.12@cse.mrt.ac.lk>
 
-USER user
+RUN  apt-get update \
+  && sudo apt-get install -y wget \
+  && sudo apt-get install libgtk2.0-0 libxtst6 \
+  && rm -rf /var/lib/apt/lists/*
 
-ENV JAVA_VERSION=8u65 \
-    JAVA_VERSION_PREFIX=1.8.0_65 \
-    CHE_LOCAL_CONF_DIR=/home/user/.che
+RUN wget http://www.mirrorservice.org/sites/download.eclipse.org/eclipseMirror/technology/epp/downloads/release/mars/2/eclipse-jee-mars-2-linux-gtk-x86_64.tar.gz
+RUN tar -zxvf eclipse-jee-mars-2-linux-gtk-x86_64.tar.gz
 
-RUN mkdir /home/user/.che && \
-    wget \
-   --no-cookies \
-   --no-check-certificate \
-   --header "Cookie: oraclelicense=accept-securebackup-cookie" \
-   -qO- \
-   "http://download.oracle.com/otn-pub/java/jdk/$JAVA_VERSION-b17/jre-$JAVA_VERSION-linux-x64.tar.gz" | sudo tar -zx -C /opt/
-
-ENV JAVA_HOME /opt/jre$JAVA_VERSION_PREFIX
-ENV PATH $JAVA_HOME/bin:$PATH
-
-EXPOSE 8080
-
-ADD /assembly/assembly-main/target/eclipse-che-*/eclipse-che-* /home/user/che
-ENV CHE_HOME /home/user/che
-
-ENTRYPOINT [ "/home/user/che/bin/che.sh", "-c" ]
-CMD [ "run" ]
