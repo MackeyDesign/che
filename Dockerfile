@@ -1,4 +1,4 @@
-# This is a comment
+
 FROM codenvy/ubuntu_jdk8
 MAINTAINER Randika Navagamuwa <randika.12@cse.mrt.ac.lk>
 
