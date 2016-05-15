@@ -43,6 +43,11 @@
         <dependencies>
             <dependency>
                 <groupId>org.eclipse.che</groupId>
+                <artifactId>che-examples-action</artifactId>
+                <version>4.0.0-RC10</version>
+            </dependency>
+            <dependency>
+                <groupId>org.eclipse.che</groupId>
                 <artifactId>assembly-ide-war</artifactId>
                 <version>${project.version}</version>
                 <type>war</type>

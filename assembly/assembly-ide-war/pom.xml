@@ -29,6 +29,11 @@
     </properties>
     <dependencies>
         <dependency>
+            <groupId>org.eclipse.che</groupId>
+            <artifactId>che-examples-action</artifactId>
+            <version>4.0.0-RC10</version>
+        </dependency>
+        <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
         </dependency>
