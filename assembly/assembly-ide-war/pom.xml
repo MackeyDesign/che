@@ -29,9 +29,9 @@
     </properties>
     <dependencies>
         <dependency>
-            <groupId>org.eclipse.che</groupId>
+            <groupId>org.eclipse.che.plugin</groupId>
             <artifactId>che-examples-action</artifactId>
-            <version>4.0.0-RC10</version>
+            <version>4.3.0-RC1-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>com.google.guava</groupId>
@@ -220,12 +220,12 @@
         <dependency>
             <groupId>com.google.gwt</groupId>
             <artifactId>gwt-user</artifactId>
-            <scope>provided</scope>
+            <!--<scope>provided</scope>-->
         </dependency>
         <dependency>
             <groupId>javax.servlet</groupId>
             <artifactId>javax.servlet-api</artifactId>
-            <scope>provided</scope>
+            <!--<scope>provided</scope>-->
         </dependency>
         <dependency>
             <groupId>com.google.gwt</groupId>
