@@ -25,5 +25,6 @@
     <modules>
         <module>che-plugin-orion-editor</module>
         <module>che-plugin-orion-compare</module>
+        <module>che-ide-orion-extension</module>
     </modules>
 </project>
