@@ -14,93 +14,55 @@ package org.eclipse.che.ide.editor.orion.client.examples;
 
  */
 
-import com.google.gwt.editor.client.Editor;
-import com.google.inject.assistedinject.Assisted;
-import com.google.inject.assistedinject.AssistedInject;
+import com.google.gwt.core.client.GWT;
 import org.eclipse.che.ide.api.action.Action;
 import org.eclipse.che.ide.api.action.ActionEvent;
 
 import com.google.inject.Inject;
 import org.eclipse.che.ide.api.editor.EditorAgent;
 import org.eclipse.che.ide.api.editor.EditorPartPresenter;
-import org.eclipse.che.ide.api.editor.EditorProvider;
-import org.eclipse.che.ide.api.editor.EditorRegistry;
-import org.eclipse.che.ide.api.editor.annotation.AnnotationModel;
-import org.eclipse.che.ide.api.editor.annotation.AnnotationModelEvent;
+import org.eclipse.che.ide.api.editor.text.TextPosition;
+import org.eclipse.che.ide.api.editor.text.TextRange;
 import org.eclipse.che.ide.api.editor.texteditor.TextEditorPresenter;
 import org.eclipse.che.ide.api.notification.NotificationManager;
-import org.eclipse.che.ide.editor.orion.client.OrionEditorModule;
-import org.eclipse.che.ide.editor.orion.client.OrionEditorWidget;
-import org.eclipse.che.ide.editor.orion.client.OrionTextEditorFactory;
-import org.eclipse.che.ide.editor.orion.client.jso.OrionAnnotationModelOverlay;
-import org.eclipse.che.ide.editor.orion.client.jso.OrionAnnotationOverlay;
-import org.eclipse.che.ide.editor.orion.client.jso.OrionStyleOverlay;
-
-import javax.validation.constraints.NotNull;
-
+import org.eclipse.che.ide.editor.orion.client.PairProgrammingResources;
 
 public class myTest extends Action {
     private NotificationManager notificationManager;
     private EditorAgent editorAgent;
-    private AnnotationModelEvent annotationModelEvent;
-    private OrionTextEditorFactory orionTextEditorFactory;
-    private EditorRegistry editorRegistry;
-    private EditorProvider editorProvider;
-    private EditorPartPresenter editorPartPresenter;
-    private OrionEditorModule orionEditorModule;
+    private EditorPartPresenter activeEditor;
+    private TextEditorPresenter textEditor;
+    private PairProgrammingResources RESOURCES;
 
     @Inject
-    public myTest(MyResources resources, NotificationManager notificationManager,EditorAgent editorAgent,OrionEditorModule orionEditorModule) {
+    public myTest(MyResources resources, NotificationManager notificationManager, EditorAgent editorAgent, PairProgrammingResources pairProgrammingResources) {
         super("My Action", "My Action Description", null, resources.MyProjectTypeIcon());
         this.notificationManager = notificationManager;
         this.editorAgent = editorAgent;
-        this.orionEditorModule = orionEditorModule;
+        this.RESOURCES = pairProgrammingResources;
     }
 
     @Override
     public void actionPerformed(ActionEvent e) {
-        this.editorPartPresenter = editorAgent.getActiveEditor();
-        String temp = editorPartPresenter.getEditorInput().getToolTipText();
-        notificationManager.notify( temp);
-       // editorAgent.getActiveEditor().close(true);
-       // TextEditorPresenter<OrionEditorWidget> editor = (TextEditorPresenter<OrionEditorWidget>) editorAgent.getActiveEditor();
-         //editorProvider.getEditor();
-        final OrionAnnotationOverlay annotation = OrionAnnotationOverlay.create();
+        //final CustomListBoxResources RESOURCES = GWT.create(CustomListBoxResources.class);
+        this.activeEditor = editorAgent.getActiveEditor();
+        if (activeEditor instanceof TextEditorPresenter){
+             this.textEditor = (TextEditorPresenter)activeEditor;
+        }
+        final TextPosition from = textEditor.getDocument().getPositionFromIndex(30);
+        final TextPosition to = textEditor.getDocument().getPositionFromIndex(37);
 
-        OrionStyleOverlay styleOverlay = OrionStyleOverlay.create();
-        //styleOverlay.setStyleClass(className);
-        annotation.setStart(150);
-        annotation.setEnd(150);
-        annotation.setRangeStyle(styleOverlay);
-        annotation.setType("che-marker");
-//        private OrionEditorViewOverlay editorViewOverlay = new OrionEditorViewOverlay();
-//        private OrionEditorOverlay editor = OrionEditorViewOverlay.get
-//        final OrionAnnotationOverlay annotation = OrionAnnotationOverlay.create();
-//
-//        OrionStyleOverlay styleOverlay = OrionStyleOverlay.create();
-//        //styleOverlay.setStyleClass(className);
-//
-//        //int start = embeddedDocument.getIndexFromPosition(range.getFrom());
-//        //int end = embeddedDocument.getIndexFromPosition(range.getTo());
-//
-//        annotation.setStart(150);
-//        annotation.setEnd(150);
-//        annotation.setRangeStyle(styleOverlay);
-//        annotation.setType("che-marker");
-//
-//
-//        editorOverlay.getAnnotationModel().addAnnotation(annotation);
-////        final OrionAnnotationOverlay annotation = OrionAnnotationOverlay.create();
-////
-////        OrionStyleOverlay styleOverlay = OrionStyleOverlay.create();
-////        styleOverlay.setStyleClass(className);
-////
-////        int start = embeddedDocument.getIndexFromPosition(range.getFrom());
-////        int end = embeddedDocument.getIndexFromPosition(range.getTo());
-////
-////        annotation.setStart(start);
-////        annotation.setEnd(end);
-////        annotation.setRangeStyle(styleOverlay);
-//        annotation.setType("pairProgramming");
+        final TextRange textRange = new TextRange(from, to);
+        //String css = RESOURCES.getCSS().listBox();
+        //textEditor.getDocument().setCursorPosition(to);
+        //String annotationStyle = customListBoxResources.getCSS().listBox();
+        String annotationStyle = RESOURCES.getCSS().comment();
+//        textEditor.getHasTextMarkers().addMarker(textRange,annotationStyle);
+//        annotationStyle = RESOURCES.getCSS().yoda();
+//        textEditor.getHasTextMarkers().addMarker(textRange,annotationStyle);
+//        annotationStyle = RESOURCES.getCSS().classSwitch();
+        textEditor.getHasTextMarkers().addMarker(textRange,annotationStyle);
+
+        notificationManager.notify(textEditor.getDocument().getCursorOffset()+"");
  }
 }
