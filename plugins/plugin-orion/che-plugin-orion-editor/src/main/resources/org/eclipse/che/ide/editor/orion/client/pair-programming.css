@@ -242,6 +242,9 @@
 .orionCodenvy .comment {
     color: #808080;
 }
+.orionCodenvy .pairProgramminig {
+    outline: 1px solid yellow;
+}
 .orionCodenvy .constant {
     color: keyword;
     font-weight: normal;

@@ -49,20 +49,21 @@ public class myTest extends Action {
         if (activeEditor instanceof TextEditorPresenter){
              this.textEditor = (TextEditorPresenter)activeEditor;
         }
-        final TextPosition from = textEditor.getDocument().getPositionFromIndex(30);
-        final TextPosition to = textEditor.getDocument().getPositionFromIndex(37);
+        int pos = textEditor.getDocument().getCursorOffset();
+        final TextPosition from = textEditor.getDocument().getPositionFromIndex(pos);
+        final TextPosition to = textEditor.getDocument().getPositionFromIndex(pos);
 
         final TextRange textRange = new TextRange(from, to);
         //String css = RESOURCES.getCSS().listBox();
         //textEditor.getDocument().setCursorPosition(to);
         //String annotationStyle = customListBoxResources.getCSS().listBox();
-        String annotationStyle = RESOURCES.getCSS().comment();
+        String annotationStyle = RESOURCES.getCSS().pairProgramminig();
 //        textEditor.getHasTextMarkers().addMarker(textRange,annotationStyle);
 //        annotationStyle = RESOURCES.getCSS().yoda();
 //        textEditor.getHasTextMarkers().addMarker(textRange,annotationStyle);
 //        annotationStyle = RESOURCES.getCSS().classSwitch();
         textEditor.getHasTextMarkers().addMarker(textRange,annotationStyle);
 
-        notificationManager.notify(textEditor.getDocument().getCursorOffset()+"");
+        notificationManager.notify(pos+"");
  }
 }

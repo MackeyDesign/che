@@ -242,6 +242,13 @@
 .orionCodenvy .comment {
     color: #808080;
 }
+.orionCodenvy .pairProgramminig {
+    outline: 1px solid yellow;
+    animation: blinker 1s linear infinite;
+}
+@keyframes blinker {
+    50% { opacity: 0.0; }
+}
 .orionCodenvy .constant {
     color: keyword;
     font-weight: normal;
