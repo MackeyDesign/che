@@ -41,6 +41,12 @@
     </properties>
     <dependencyManagement>
         <dependencies>
+            <!-- http://mvnrepository.com/artifact/com.google.gwt/gwt-codeserver -->
+            <dependency>
+                <groupId>com.google.gwt</groupId>
+                <artifactId>gwt-codeserver</artifactId>
+                <version>2.7.0</version>
+            </dependency>
             <dependency>
                 <groupId>org.eclipse.che.plugin</groupId>
                 <artifactId>che-examples-action</artifactId>
