@@ -28,7 +28,7 @@ public class MyExtension {
     public MyExtension(MyResources resources, ActionManager actionManager, myTest action) {
 
         DefaultActionGroup mainMenu = (DefaultActionGroup) actionManager.getAction(GROUP_MAIN_MENU);
-        DefaultActionGroup myMenu = new DefaultActionGroup("My Menu", true, actionManager);
+        DefaultActionGroup myMenu = new DefaultActionGroup("Multi Cursor", true, actionManager);
         mainMenu.add(myMenu, Constraints.LAST);
 
         actionManager.registerAction("MyMenuID", myMenu);
