@@ -31,4 +31,13 @@
         <module>assembly-wsmaster-war</module>
         <module>assembly-main</module>
     </modules>
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.eclipse.che.plugin</groupId>
+                <artifactId>che-plugin-flux-live-edit</artifactId>
+                <version>4.3.0-RC1-SNAPSHOT</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 </project>

@@ -27,6 +27,7 @@ import org.eclipse.che.ide.api.editor.texteditor.TextEditorPresenter;
 import org.eclipse.che.ide.api.notification.NotificationManager;
 import org.eclipse.che.ide.editor.orion.client.PairProgrammingResources;
 
+
 public class myTest extends Action {
     private NotificationManager notificationManager;
     private EditorAgent editorAgent;
