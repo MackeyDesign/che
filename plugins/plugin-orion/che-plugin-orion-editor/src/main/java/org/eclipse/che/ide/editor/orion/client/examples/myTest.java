@@ -24,8 +24,15 @@ import org.eclipse.che.ide.api.editor.EditorPartPresenter;
 import org.eclipse.che.ide.api.editor.text.TextPosition;
 import org.eclipse.che.ide.api.editor.text.TextRange;
 import org.eclipse.che.ide.api.editor.texteditor.TextEditorPresenter;
+import org.eclipse.che.ide.api.notification.Notification;
+import static org.eclipse.che.ide.api.notification.ReadState.READ;
 import org.eclipse.che.ide.api.notification.NotificationManager;
+import org.eclipse.che.ide.api.notification.ReadState;
+import org.eclipse.che.ide.api.notification.StatusNotification;
 import org.eclipse.che.ide.editor.orion.client.PairProgrammingResources;
+import static org.eclipse.che.ide.api.notification.StatusNotification.Status.PROGRESS;
+import static org.eclipse.che.ide.api.notification.StatusNotification.DisplayMode.FLOAT_MODE;
+
 
 
 public class myTest extends Action {
@@ -37,7 +44,7 @@ public class myTest extends Action {
 
     @Inject
     public myTest(MyResources resources, NotificationManager notificationManager, EditorAgent editorAgent, PairProgrammingResources pairProgrammingResources) {
-        super("My Action", "My Action Description", null, resources.MyProjectTypeIcon());
+        super("Multi Cursor", "My Action Description", null, resources.MyProjectTypeIcon());
         this.notificationManager = notificationManager;
         this.editorAgent = editorAgent;
         this.RESOURCES = pairProgrammingResources;
@@ -58,13 +65,20 @@ public class myTest extends Action {
         //String css = RESOURCES.getCSS().listBox();
         //textEditor.getDocument().setCursorPosition(to);
         //String annotationStyle = customListBoxResources.getCSS().listBox();
-        String annotationStyle = RESOURCES.getCSS().pairProgramminig();
+        //String annotationStyle = RESOURCES.getCSS().pairProgramminig();
+        String annotationStyle = RESOURCES.getCSS().pairProgramminigRemove();
 //        textEditor.getHasTextMarkers().addMarker(textRange,annotationStyle);
 //        annotationStyle = RESOURCES.getCSS().yoda();
 //        textEditor.getHasTextMarkers().addMarker(textRange,annotationStyle);
 //        annotationStyle = RESOURCES.getCSS().classSwitch();
         textEditor.getHasTextMarkers().addMarker(textRange,annotationStyle);
 
-        notificationManager.notify(pos+"");
+          Notification notification = new Notification("my test message");
+          StatusNotification statusNotification = new StatusNotification("my status",PROGRESS,FLOAT_MODE);
+//          notification.setContent("just a test");
+//          notificationManager.notify(notification);
+        statusNotification.setState(READ);
+        notificationManager.notify(statusNotification);
+        notificationManager.notify("Cursor at "+pos);
  }
 }
