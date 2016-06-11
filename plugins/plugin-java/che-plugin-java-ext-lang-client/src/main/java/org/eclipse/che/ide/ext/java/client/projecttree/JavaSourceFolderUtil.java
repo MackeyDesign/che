@@ -16,7 +16,7 @@ import org.eclipse.che.commons.annotation.Nullable;
 import org.eclipse.che.ide.api.app.CurrentProject;
 import org.eclipse.che.ide.api.project.node.HasProjectConfig;
 import org.eclipse.che.ide.api.project.tree.TreeNode;
-import org.eclipse.che.ide.api.project.tree.VirtualFile;
+import org.eclipse.che.ide.api.resources.VirtualFile;
 import org.eclipse.che.ide.ext.java.client.project.node.JavaFileNode;
 import org.eclipse.che.ide.ext.java.client.project.node.PackageNode;
 import org.eclipse.che.ide.ext.java.client.project.node.jar.JarFileNode;
@@ -26,6 +26,8 @@ import javax.validation.constraints.Null;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+
+import static org.eclipse.che.ide.ext.java.shared.Constants.SOURCE_FOLDER;
 
 /**
  * @author Vladyslav Zhukovskii
@@ -45,7 +47,7 @@ public class JavaSourceFolderUtil {
                 final String projectPath = projectConfig.getPath();
                 final String itemPath = item.getPath();
 
-                List<String> sourceFolders = attributes.get(projectBuilder + ".source.folder");
+                List<String> sourceFolders = attributes.get(SOURCE_FOLDER);
                 boolean isSrcDir = isSourceFolder(sourceFolders, projectPath, itemPath);
 
                 List<String> testSourceFolders = attributes.get(projectBuilder + ".test.source.folder");
@@ -104,7 +106,7 @@ public class JavaSourceFolderUtil {
         String projectPath = removeEndingPathSeparator(projectConfig.getPath());
         Map<String, List<String>> attributes = projectConfig.getAttributes();
 
-        List<String> sourceFolders = attributes.get(projectBuilder + ".source.folder");
+        List<String> sourceFolders = attributes.get(SOURCE_FOLDER);
         if (sourceFolders != null) {
             for (String sourceFolder : sourceFolders) {
                 allSourceFolders.add(projectPath + addStartingPathSeparator(sourceFolder) + '/');

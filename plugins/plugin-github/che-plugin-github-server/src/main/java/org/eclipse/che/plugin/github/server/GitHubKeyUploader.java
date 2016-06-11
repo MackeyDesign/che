@@ -19,9 +19,9 @@ import org.eclipse.che.api.core.UnauthorizedException;
 import org.eclipse.che.commons.env.EnvironmentContext;
 import org.eclipse.che.commons.json.JsonHelper;
 import org.eclipse.che.dto.server.DtoFactory;
-import org.eclipse.che.git.impl.nativegit.GitUrl;
-import org.eclipse.che.git.impl.nativegit.ssh.SshKeyUploader;
+import org.eclipse.che.api.git.GitUrlUtils;
 import org.eclipse.che.plugin.github.shared.GitHubKey;
+import org.eclipse.che.plugin.ssh.key.script.SshKeyUploader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,7 +34,9 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.text.SimpleDateFormat;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,12 +60,12 @@ public class GitHubKeyUploader implements SshKeyUploader {
 
     @Override
     public boolean match(String url) {
-        return GitUrl.isSSH(url) && GITHUB_URL_PATTERN.matcher(url).matches();
+        return GitUrlUtils.isSSH(url) && GITHUB_URL_PATTERN.matcher(url).matches();
     }
 
     @Override
     public void uploadKey(String publicKey) throws IOException, UnauthorizedException {
-        final OAuthToken token = tokenProvider.getToken("github", EnvironmentContext.getCurrent().getUser().getId());
+        final OAuthToken token = tokenProvider.getToken("github", EnvironmentContext.getCurrent().getSubject().getUserId());
 
         if (token == null || token.getToken() == null) {
             LOG.debug("Token not found, user need to authorize to upload key.");
@@ -81,7 +83,7 @@ public class GitHubKeyUploader implements SshKeyUploader {
         }
 
         final Map<String, String> postParams = new HashMap<>(2);
-        postParams.put("title", GitUrl.getCodenvyTimeStampKeyLabel());
+        postParams.put("title", "IDE SSH Key (" + new SimpleDateFormat().format(new Date()) + ")");
         postParams.put("key", new String(publicKey.getBytes()));
 
         final String postBody = JsonHelper.toJson(postParams);

@@ -14,14 +14,14 @@ import com.google.inject.Inject;
 import com.google.inject.assistedinject.Assisted;
 import com.google.web.bindery.event.shared.EventBus;
 
-import org.eclipse.che.api.project.gwt.client.ProjectServiceClient;
+import org.eclipse.che.ide.api.project.ProjectServiceClient;
 import org.eclipse.che.api.project.shared.Constants;
 import org.eclipse.che.api.workspace.shared.dto.ProjectConfigDto;
 import org.eclipse.che.ide.CoreLocalizationConstant;
 import org.eclipse.che.ide.api.app.AppContext;
 import org.eclipse.che.ide.api.event.project.CreateProjectEvent;
 import org.eclipse.che.ide.api.project.node.HasStorablePath;
-import org.eclipse.che.ide.api.project.node.Node;
+import org.eclipse.che.ide.api.data.tree.Node;
 import org.eclipse.che.ide.api.project.type.wizard.ProjectWizardMode;
 import org.eclipse.che.ide.api.selection.Selection;
 import org.eclipse.che.ide.api.selection.SelectionAgent;
@@ -33,9 +33,9 @@ import org.eclipse.che.ide.resource.Path;
 import org.eclipse.che.ide.rest.AsyncRequestCallback;
 import org.eclipse.che.ide.rest.DtoUnmarshallerFactory;
 import org.eclipse.che.ide.rest.Unmarshallable;
-import org.eclipse.che.ide.ui.dialogs.CancelCallback;
-import org.eclipse.che.ide.ui.dialogs.ConfirmCallback;
-import org.eclipse.che.ide.ui.dialogs.DialogFactory;
+import org.eclipse.che.ide.api.dialogs.CancelCallback;
+import org.eclipse.che.ide.api.dialogs.ConfirmCallback;
+import org.eclipse.che.ide.api.dialogs.DialogFactory;
 
 import javax.validation.constraints.NotNull;
 
@@ -63,7 +63,6 @@ public class ProjectWizard extends AbstractWizard<ProjectConfigDto> {
     private final SelectionAgent           selectionAgent;
     private final ProjectImporter          importer;
     private final ProjectUpdater           updater;
-    private final String                   workspaceId;
     private final CoreLocalizationConstant locale;
 
     @Inject
@@ -92,7 +91,6 @@ public class ProjectWizard extends AbstractWizard<ProjectConfigDto> {
         this.importer = importer;
         this.updater = updater;
         this.locale = locale;
-        this.workspaceId = appContext.getWorkspaceId();
 
         context.put(WIZARD_MODE_KEY, mode.toString());
         context.put(PROJECT_NAME_KEY, dataObject.getName());

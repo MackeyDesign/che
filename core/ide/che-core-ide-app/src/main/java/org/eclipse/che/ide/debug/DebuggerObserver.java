@@ -11,6 +11,7 @@
 package org.eclipse.che.ide.debug;
 
 import org.eclipse.che.api.promises.client.Promise;
+import org.eclipse.che.ide.api.debug.Breakpoint;
 
 import java.util.List;
 
@@ -52,7 +53,7 @@ public interface DebuggerObserver {
     /**
      * Event happens on step in.
      */
-    void onPreStepIn();
+    void onPreStepInto();
 
     /**
      * Event happens on step out.

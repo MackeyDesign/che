@@ -24,14 +24,13 @@ import org.eclipse.che.ide.api.selection.Selection;
 import org.eclipse.che.ide.api.selection.SelectionAgent;
 import org.eclipse.che.ide.project.node.FileReferenceNode;
 import org.eclipse.che.ide.project.node.FolderReferenceNode;
-import org.eclipse.che.ide.project.node.ModuleNode;
 import org.eclipse.che.ide.project.node.ProjectNode;
 import org.eclipse.che.ide.project.node.ResourceBasedNode;
-import org.eclipse.che.ide.ui.dialogs.CancelCallback;
-import org.eclipse.che.ide.ui.dialogs.DialogFactory;
-import org.eclipse.che.ide.ui.dialogs.InputCallback;
-import org.eclipse.che.ide.ui.dialogs.input.InputDialog;
-import org.eclipse.che.ide.ui.dialogs.input.InputValidator;
+import org.eclipse.che.ide.api.dialogs.CancelCallback;
+import org.eclipse.che.ide.api.dialogs.DialogFactory;
+import org.eclipse.che.ide.api.dialogs.InputCallback;
+import org.eclipse.che.ide.api.dialogs.InputDialog;
+import org.eclipse.che.ide.api.dialogs.InputValidator;
 import org.eclipse.che.ide.util.NameUtils;
 
 import javax.validation.constraints.NotNull;
@@ -111,10 +110,9 @@ public class RenameItemAction extends AbstractPerspectiveAction {
 
         final Object possibleNode = selection.getHeadElement();
 
-        boolean isModuleNode = possibleNode instanceof ModuleNode;
         boolean isSupportRename = possibleNode instanceof SupportRename;
 
-        boolean enable = !isModuleNode && isSupportRename && ((SupportRename)possibleNode).getRenameProcessor() != null;
+        boolean enable = isSupportRename && ((SupportRename)possibleNode).getRenameProcessor() != null;
 
         e.getPresentation().setEnabled(enable);
     }

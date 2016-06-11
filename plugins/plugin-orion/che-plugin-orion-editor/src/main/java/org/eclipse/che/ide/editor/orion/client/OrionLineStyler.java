@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2014-2015 Codenvy, S.A.
+ * Copyright (c) 2012-2016 Codenvy, S.A.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -16,7 +16,7 @@ import org.eclipse.che.ide.editor.orion.client.jso.OrionAnnotationOverlay;
 import org.eclipse.che.ide.editor.orion.client.jso.OrionAttributesOverlay;
 import org.eclipse.che.ide.editor.orion.client.jso.OrionEditorOverlay;
 import org.eclipse.che.ide.editor.orion.client.jso.OrionStyleOverlay;
-import org.eclipse.che.ide.jseditor.client.texteditor.LineStyler;
+import org.eclipse.che.ide.api.editor.texteditor.LineStyler;
 
 /**
  * Implementation of {@link LineStyler} for orion.

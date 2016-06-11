@@ -49,8 +49,7 @@ describe('CheProjectType', function(){
   /**
    * Inject factory and http backend
    */
-  beforeEach(inject(function(cheProjectType, cheWorkspace, cheAPIBuilder, cheHttpBackend) {
-    factory = cheProjectType;
+  beforeEach(inject(function(cheWorkspace, cheAPIBuilder, cheHttpBackend) {
     workspace = cheWorkspace;
     apiBuilder = cheAPIBuilder;
     cheBackend = cheHttpBackend;
@@ -76,7 +75,7 @@ describe('CheProjectType', function(){
       var mavenType = apiBuilder.getProjectTypeBuilder().withId('maven').withDisplayname('Maven project').withAttributeDescriptors([attributeLanguageJava]).build();
       var antType = apiBuilder.getProjectTypeBuilder().withId('ant').withDisplayname('Ant project').withAttributeDescriptors([attributeLanguageJava]).build();
       let workspaceId = 'florentWorkspace';
-      let agentUrl = 'localhost:3232';
+      let agentUrl = 'localhost:3232/wsagent/ext';
 
       var runtime =  {'links': [{'href': agentUrl, 'rel': 'wsagent'}]};
       var workspace1 = apiBuilder.getWorkspaceBuilder().withId(workspaceId).withRuntime(runtime).build();
@@ -97,26 +96,28 @@ describe('CheProjectType', function(){
       // flush command
       httpBackend.flush();
 
+      var factory = workspace.getWorkspaceAgent(workspaceId).getProjectType();
+
       // no types now on factory
-      expect(factory.getAllProjectTypes(workspaceId).length).toEqual(0);
+      expect(factory.getAllProjectTypes().length).toEqual(0);
 
       // fetch types
-      factory.fetchTypes(workspaceId);
+      factory.fetchTypes();
 
       // expecting a GET
-      httpBackend.expectGET('//' + agentUrl + '/api/ext/project-type/' + workspaceId);
+      httpBackend.expectGET(agentUrl + '/project-type');
 
       // flush command
       httpBackend.flush();
 
-      expect(factory.getAllProjectTypes(workspaceId).length).toEqual(2);
+      expect(factory.getAllProjectTypes().length).toEqual(2);
 
       // now, check types
-      var projectTypes = factory.getAllProjectTypes(workspaceId);
+      var projectTypes = factory.getAllProjectTypes();
       // check we have 2 PT
       expect(projectTypes.length).toEqual(2);
 
-      var typesIds = factory.getProjectTypesIDs(workspaceId);
+      var typesIds = factory.getProjectTypesIDs();
       expect(typesIds.size).toEqual(2);
 
       var firstType = typesIds.get('maven');
@@ -130,7 +131,4 @@ describe('CheProjectType', function(){
 
     }
   );
-
-
-
 });

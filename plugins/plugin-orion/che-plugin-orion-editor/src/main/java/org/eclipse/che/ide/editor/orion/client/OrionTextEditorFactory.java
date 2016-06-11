@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2014-2015 Codenvy, S.A.
+ * Copyright (c) 2012-2016 Codenvy, S.A.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -12,10 +12,10 @@ package org.eclipse.che.ide.editor.orion.client;
 
 import javax.inject.Inject;
 
-import org.eclipse.che.ide.jseditor.client.texteditor.EditorWidget;
-import org.eclipse.che.ide.jseditor.client.texteditor.EditorWidgetFactory;
-import org.eclipse.che.ide.jseditor.client.texteditor.EmbeddedTextEditorPresenter;
-import org.eclipse.che.ide.jseditor.client.texteditor.EmbeddedTextEditorPresenterFactory;
+import org.eclipse.che.ide.api.editor.texteditor.EditorWidget;
+import org.eclipse.che.ide.api.editor.texteditor.EditorWidgetFactory;
+import org.eclipse.che.ide.api.editor.texteditor.TextEditorPresenter;
+import org.eclipse.che.ide.api.editor.texteditor.TextEditorPresenterFactory;
 
 /** Editor presenter factory that produces orion-based editors. */
 public class OrionTextEditorFactory {
@@ -24,11 +24,11 @@ public class OrionTextEditorFactory {
     @Inject
     private EditorWidgetFactory<OrionEditorWidget> editorWidgetFactory;
 
-    /** The base {@link EmbeddedTextEditorPresenter} factory. */
+    /** The base {@link TextEditorPresenter} factory. */
     @Inject
-    private EmbeddedTextEditorPresenterFactory<OrionEditorWidget> presenterFactory;
+    private TextEditorPresenterFactory<OrionEditorWidget> presenterFactory;
 
-    public EmbeddedTextEditorPresenter<OrionEditorWidget> createTextEditor() {
+    public TextEditorPresenter<OrionEditorWidget> createTextEditor() {
         return this.presenterFactory.createTextEditor(this.editorWidgetFactory);
     }
 }

@@ -12,7 +12,7 @@ package org.eclipse.che.ide.ext.java.client.organizeimports;
 
 import com.google.gwtmockito.GwtMockitoTestRunner;
 
-import org.eclipse.che.api.project.gwt.client.ProjectServiceClient;
+import org.eclipse.che.ide.api.project.ProjectServiceClient;
 import org.eclipse.che.api.promises.client.Operation;
 import org.eclipse.che.api.promises.client.Promise;
 import org.eclipse.che.api.workspace.shared.dto.ProjectConfigDto;
@@ -20,13 +20,13 @@ import org.eclipse.che.ide.api.app.AppContext;
 import org.eclipse.che.ide.api.editor.EditorInput;
 import org.eclipse.che.ide.api.notification.NotificationManager;
 import org.eclipse.che.ide.api.project.node.HasProjectConfig;
-import org.eclipse.che.ide.api.project.tree.VirtualFile;
+import org.eclipse.che.ide.api.resources.VirtualFile;
 import org.eclipse.che.ide.dto.DtoFactory;
 import org.eclipse.che.ide.ext.java.client.JavaLocalizationConstant;
 import org.eclipse.che.ide.ext.java.client.editor.JavaCodeAssistClient;
 import org.eclipse.che.ide.ext.java.shared.dto.ConflictImportDTO;
-import org.eclipse.che.ide.jseditor.client.document.Document;
-import org.eclipse.che.ide.jseditor.client.texteditor.TextEditor;
+import org.eclipse.che.ide.api.editor.document.Document;
+import org.eclipse.che.ide.api.editor.texteditor.TextEditor;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -107,9 +107,6 @@ public class OrganizeImportsPresenterTest {
         when(projectConfigDto.getPath()).thenReturn(PATH);
         when(file.getName()).thenReturn("A.java");
         when(file.getPath()).thenReturn(PATH);
-
-        when(appContext.getWorkspaceId()).thenReturn(WS_ID);
-
         when(javaCodeAssistClient.organizeImports(anyString(), anyString())).thenReturn(importsPromise);
         when(importsPromise.then(Matchers.<Operation<List<ConflictImportDTO>>>anyObject())).thenReturn(importsPromise);
 

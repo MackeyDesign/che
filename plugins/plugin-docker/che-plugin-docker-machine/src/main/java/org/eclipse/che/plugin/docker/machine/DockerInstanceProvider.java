@@ -18,6 +18,8 @@ import com.google.inject.Inject;
 
 import org.eclipse.che.api.core.NotFoundException;
 import org.eclipse.che.api.core.model.machine.Machine;
+import org.eclipse.che.api.core.model.machine.MachineConfig;
+import org.eclipse.che.api.core.model.machine.MachineSource;
 import org.eclipse.che.api.core.model.machine.Recipe;
 import org.eclipse.che.api.core.model.machine.ServerConf;
 import org.eclipse.che.api.core.util.FileCleaner;
@@ -28,12 +30,11 @@ import org.eclipse.che.api.machine.server.exception.MachineException;
 import org.eclipse.che.api.machine.server.exception.SnapshotException;
 import org.eclipse.che.api.machine.server.exception.UnsupportedRecipeException;
 import org.eclipse.che.api.machine.server.spi.Instance;
-import org.eclipse.che.api.machine.server.spi.InstanceKey;
 import org.eclipse.che.api.machine.server.spi.InstanceProvider;
+import org.eclipse.che.api.machine.server.util.RecipeRetriever;
 import org.eclipse.che.commons.annotation.Nullable;
 import org.eclipse.che.commons.env.EnvironmentContext;
 import org.eclipse.che.commons.lang.IoUtil;
-import org.eclipse.che.commons.lang.NameGenerator;
 import org.eclipse.che.plugin.docker.client.DockerConnector;
 import org.eclipse.che.plugin.docker.client.DockerConnectorConfiguration;
 import org.eclipse.che.plugin.docker.client.DockerFileException;
@@ -43,6 +44,9 @@ import org.eclipse.che.plugin.docker.client.ProgressLineFormatterImpl;
 import org.eclipse.che.plugin.docker.client.ProgressMonitor;
 import org.eclipse.che.plugin.docker.client.json.ContainerConfig;
 import org.eclipse.che.plugin.docker.client.json.HostConfig;
+import org.eclipse.che.plugin.docker.client.params.PullParams;
+import org.eclipse.che.plugin.docker.client.params.RemoveImageParams;
+import org.eclipse.che.plugin.docker.client.params.TagParams;
 import org.eclipse.che.plugin.docker.machine.node.DockerNode;
 import org.eclipse.che.plugin.docker.machine.node.WorkspaceFolderPathProvider;
 import org.slf4j.Logger;
@@ -68,18 +72,31 @@ import java.util.stream.Collectors;
 
 import static com.google.common.base.Strings.isNullOrEmpty;
 import static java.lang.String.format;
+import static org.eclipse.che.plugin.docker.machine.DockerInstance.LATEST_TAG;
 
 /**
  * Docker implementation of {@link InstanceProvider}
  *
  * @author andrew00x
  * @author Alexander Garagatyi
+ * @author Roman Iuvshyn
  */
 public class DockerInstanceProvider implements InstanceProvider {
     private static final Logger LOG = LoggerFactory.getLogger(DockerInstanceProvider.class);
 
+    /**
+     * dockerfile type support with recipe being a content of Dockerfile
+     */
+    public static final String DOCKER_FILE_TYPE = "dockerfile";
+
+    /**
+     * image type support with recipe script being the name of the repository + image name
+     */
+    public static final String DOCKER_IMAGE_TYPE = "image";
+
     private final DockerConnector                  docker;
     private final DockerInstanceStopDetector       dockerInstanceStopDetector;
+    private final DockerContainerNameGenerator     containerNameGenerator;
     private final WorkspaceFolderPathProvider      workspaceFolderPathProvider;
     private final boolean                          doForcePullOnBuild;
     private final boolean                          privilegeMode;
@@ -93,12 +110,17 @@ public class DockerInstanceProvider implements InstanceProvider {
     private final Set<String>                      commonMachineEnvVariables;
     private final String[]                         allMachinesExtraHosts;
     private final String                           projectFolderPath;
+    private final boolean                          snapshotUseRegistry;
+    private final RecipeRetriever                  recipeRetriever;
+    private final double                           memorySwapMultiplier;
 
     @Inject
     public DockerInstanceProvider(DockerConnector docker,
                                   DockerConnectorConfiguration dockerConnectorConfiguration,
                                   DockerMachineFactory dockerMachineFactory,
                                   DockerInstanceStopDetector dockerInstanceStopDetector,
+                                  DockerContainerNameGenerator containerNameGenerator,
+                                  RecipeRetriever recipeRetriever,
                                   @Named("machine.docker.dev_machine.machine_servers") Set<ServerConf> devMachineServers,
                                   @Named("machine.docker.machine_servers") Set<ServerConf> allMachinesServers,
                                   @Named("machine.docker.dev_machine.machine_volumes") Set<String> devMachineSystemVolumes,
@@ -109,17 +131,29 @@ public class DockerInstanceProvider implements InstanceProvider {
                                   @Named("machine.docker.pull_image") boolean doForcePullOnBuild,
                                   @Named("machine.docker.privilege_mode") boolean privilegeMode,
                                   @Named("machine.docker.dev_machine.machine_env") Set<String> devMachineEnvVariables,
-                                  @Named("machine.docker.machine_env") Set<String> allMachinesEnvVariables)
-            throws IOException {
-
+                                  @Named("machine.docker.machine_env") Set<String> allMachinesEnvVariables,
+                                  @Named("machine.docker.snapshot_use_registry") boolean snapshotUseRegistry,
+                                  @Named("machine.docker.memory_swap_multiplier") double memorySwapMultiplier) throws IOException {
         this.docker = docker;
         this.dockerMachineFactory = dockerMachineFactory;
         this.dockerInstanceStopDetector = dockerInstanceStopDetector;
+        this.containerNameGenerator = containerNameGenerator;
+        this.recipeRetriever = recipeRetriever;
         this.workspaceFolderPathProvider = workspaceFolderPathProvider;
         this.doForcePullOnBuild = doForcePullOnBuild;
         this.privilegeMode = privilegeMode;
-        this.supportedRecipeTypes = Collections.singleton("dockerfile");
+        this.supportedRecipeTypes = Sets.newHashSet(DOCKER_FILE_TYPE, DOCKER_IMAGE_TYPE);
         this.projectFolderPath = projectFolderPath;
+        this.snapshotUseRegistry = snapshotUseRegistry;
+        // usecases:
+        //  -1  enable unlimited swap
+        //  0   disable swap
+        //  0.5 enable swap with size equal to half of current memory size
+        //  1   enable swap with size equal to current memory size
+        //
+        //  according to docker docs field  memorySwap should be equal to memory+swap
+        //  we calculate this field as memorySwap=memory * (1+ multiplier) so we just add +1 to multiplier
+        this.memorySwapMultiplier = memorySwapMultiplier == -1 ? -1 : memorySwapMultiplier + 1;
 
         allMachinesSystemVolumes = removeEmptyAndNullValues(allMachinesSystemVolumes);
         devMachineSystemVolumes = removeEmptyAndNullValues(devMachineSystemVolumes);
@@ -210,13 +244,61 @@ public class DockerInstanceProvider implements InstanceProvider {
         return supportedRecipeTypes;
     }
 
+
+
+    /**
+     * Creates instance from scratch or by reusing a previously one by using specified {@link MachineSource}
+     * data in {@link MachineConfig}.
+     *
+     * @param machine
+     *         machine description
+     * @param creationLogsOutput
+     *         output for instance creation logs
+     * @return newly created {@link Instance}
+     * @throws UnsupportedRecipeException
+     *         if specified {@code recipe} is not supported
+     * @throws InvalidRecipeException
+     *         if {@code recipe} is invalid
+     * @throws NotFoundException
+     *         if instance described by {@link MachineSource} doesn't exists
+     * @throws MachineException
+     *         if other error occurs
+     */
     @Override
-    public Instance createInstance(Recipe recipe,
-                                   Machine machine,
-                                   LineConsumer creationLogsOutput) throws MachineException, UnsupportedRecipeException {
+    public Instance createInstance(final Machine machine, final LineConsumer creationLogsOutput)
+            throws UnsupportedRecipeException, InvalidRecipeException, NotFoundException, MachineException {
+
+        // based on machine source, do the right steps
+        MachineConfig machineConfig = machine.getConfig();
+        MachineSource machineSource = machineConfig.getSource();
+        String type = machineSource.getType();
+
+        // create container machine name
+        final String userName = EnvironmentContext.getCurrent().getSubject().getUserName();
+        final String machineContainerName = containerNameGenerator.generateContainerName(machine.getWorkspaceId(),
+                                                                                         machine.getId(),
+                                                                                         userName,
+                                                                                         machine.getConfig().getName());
+        // get recipe
+        // - it's a dockerfile type:
+        //    - location defined : download this location and get script as recipe
+        //    - content defined  : use this content as recipe script
+        // - it's an image:
+        //    - use location of image ([registry:port]/<repository-image>[:tag][@digest])
+        final Recipe recipe;
+        if (DOCKER_FILE_TYPE.equals(type)) {
+            recipe = this.recipeRetriever.getRecipe(machineConfig);
+        } else if (DOCKER_IMAGE_TYPE.equals(type)) {
+            if (isNullOrEmpty(machineSource.getLocation())) {
+                throw new InvalidRecipeException(String.format("The type '%s' needs to be used with a location, not with any other parameter. Found '%s'.", type, machineSource));
+            }
+            return createInstanceFromImage(machine, machineContainerName, creationLogsOutput);
+        } else {
+            // not supported
+            throw new UnsupportedRecipeException("The type '" + type + "' is not supported");
+        }
         final Dockerfile dockerfile = parseRecipe(recipe);
 
-        final String machineContainerName = generateContainerName(machine.getWorkspaceId(), machine.getConfig().getName());
         final String machineImageName = "eclipse-che/" + machineContainerName;
         final long memoryLimit = (long)machine.getConfig().getLimits().getRam() * 1024 * 1024;
 
@@ -228,20 +310,19 @@ public class DockerInstanceProvider implements InstanceProvider {
                               creationLogsOutput);
     }
 
-    @Override
-    public Instance createInstance(InstanceKey instanceKey,
-                                   Machine machine,
-                                   LineConsumer creationLogsOutput) throws NotFoundException, MachineException {
-        final DockerInstanceKey dockerInstanceKey = new DockerInstanceKey(instanceKey);
+    protected Instance createInstanceFromImage(final Machine machine, String machineContainerName,
+                                        final LineConsumer creationLogsOutput) throws NotFoundException, MachineException {
+        final DockerMachineSource dockerMachineSource = new DockerMachineSource(machine.getConfig().getSource());
 
-        pullImage(dockerInstanceKey, creationLogsOutput);
+        if (snapshotUseRegistry) {
+            pullImage(dockerMachineSource, creationLogsOutput);
+        }
 
-        final String machineContainerName = generateContainerName(machine.getWorkspaceId(), machine.getConfig().getName());
         final String machineImageName = "eclipse-che/" + machineContainerName;
-        final String fullNameOfPulledImage = dockerInstanceKey.getFullName();
+        final String fullNameOfPulledImage = dockerMachineSource.getLocation(false);
         try {
             // tag image with generated name to allow sysadmin recognize it
-            docker.tag(fullNameOfPulledImage, machineImageName, null);
+            docker.tag(TagParams.create(fullNameOfPulledImage, machineImageName));
         } catch (IOException e) {
             LOG.error(e.getLocalizedMessage(), e);
             throw new MachineException("Can't create machine from snapshot.");
@@ -259,7 +340,7 @@ public class DockerInstanceProvider implements InstanceProvider {
                               creationLogsOutput);
     }
 
-    private Dockerfile parseRecipe(Recipe recipe) throws InvalidRecipeException {
+    private Dockerfile parseRecipe(final Recipe recipe) throws InvalidRecipeException {
         final Dockerfile dockerfile = getDockerFile(recipe);
         if (dockerfile.getImages().isEmpty()) {
             throw new InvalidRecipeException("Unable build docker based machine, Dockerfile found but it doesn't contain base image.");
@@ -271,7 +352,7 @@ public class DockerInstanceProvider implements InstanceProvider {
         return dockerfile;
     }
 
-    private Dockerfile getDockerFile(Recipe recipe) throws InvalidRecipeException {
+    private Dockerfile getDockerFile(final Recipe recipe) throws InvalidRecipeException {
         if (recipe.getScript() == null) {
             throw new InvalidRecipeException("Unable build docker based machine, recipe isn't set or doesn't provide Dockerfile and " +
                                              "no Dockerfile found in the list of files attached to this builder.");
@@ -284,12 +365,12 @@ public class DockerInstanceProvider implements InstanceProvider {
         }
     }
 
-    protected void buildImage(Dockerfile dockerfile,
+    protected void buildImage(final Dockerfile dockerfile,
                               final LineConsumer creationLogsOutput,
-                              String imageName,
-                              boolean doForcePullOnBuild,
-                              long memoryLimit,
-                              long memorySwapLimit)
+                              final String imageName,
+                              final boolean doForcePullOnBuild,
+                              final long memoryLimit,
+                              final long memorySwapLimit)
             throws MachineException {
 
         File workDir = null;
@@ -325,15 +406,23 @@ public class DockerInstanceProvider implements InstanceProvider {
         }
     }
 
-    private void pullImage(DockerInstanceKey dockerInstanceKey, final LineConsumer creationLogsOutput) throws MachineException {
-        if (dockerInstanceKey.getRepository() == null) {
-            throw new MachineException("Machine creation failed. Snapshot state is invalid. Please, contact support.");
+    private void pullImage(final DockerMachineSource dockerMachineSource, final LineConsumer creationLogsOutput) throws MachineException {
+        if (dockerMachineSource.getRepository() == null) {
+            throw new MachineException(String.format("Machine creation failed. Machine source is invalid. No repository is defined. Found %s.", dockerMachineSource));
         }
+
+        final String tag;
+        if (isNullOrEmpty(dockerMachineSource.getTag())) {
+            tag = LATEST_TAG;
+        } else {
+            tag = dockerMachineSource.getTag();
+        }
+        PullParams pullParams = PullParams.create(dockerMachineSource.getRepository())
+                  .withTag(tag)
+                  .withRegistry(dockerMachineSource.getRegistry());
         try {
             final ProgressLineFormatterImpl progressLineFormatter = new ProgressLineFormatterImpl();
-            docker.pull(dockerInstanceKey.getRepository(),
-                        dockerInstanceKey.getTag(),
-                        dockerInstanceKey.getRegistry(),
+            docker.pull(pullParams,
                         currentProgressStatus -> {
                             try {
                                 creationLogsOutput.writeLine(progressLineFormatter.format(currentProgressStatus));
@@ -346,22 +435,45 @@ public class DockerInstanceProvider implements InstanceProvider {
         }
     }
 
+
+    /**
+     * Removes snapshot of the instance in implementation specific way.
+     *
+     * @param machineSource
+     *         contains implementation specific key of the snapshot of the instance that should be removed
+     * @throws SnapshotException
+     *         if exception occurs on instance snapshot removal
+     */
     @Override
-    public void removeInstanceSnapshot(InstanceKey instanceKey) throws SnapshotException {
+    public void removeInstanceSnapshot(final MachineSource machineSource) throws SnapshotException {
         // use registry API directly because docker doesn't have such API yet
         // https://github.com/docker/docker-registry/issues/45
-        final DockerInstanceKey dockerInstanceKey = new DockerInstanceKey(instanceKey);
-        String registry = dockerInstanceKey.getRegistry();
-        String repository = dockerInstanceKey.getRepository();
+        final DockerMachineSource dockerMachineSource;
+        try {
+            dockerMachineSource = new DockerMachineSource(machineSource);
+        } catch (MachineException e) {
+            throw new SnapshotException(e);
+        }
+
+        if (!snapshotUseRegistry) {
+            try {
+                docker.removeImage(RemoveImageParams.create(dockerMachineSource.getLocation(false)));
+            } catch (IOException ignore) {
+            }
+            return;
+        }
+
+        final String registry = dockerMachineSource.getRegistry();
+        final String repository = dockerMachineSource.getRepository();
         if (registry == null || repository == null) {
-            LOG.error("Failed to remove instance snapshot: invalid instance key: {}", instanceKey);
+            LOG.error("Failed to remove instance snapshot: invalid machine source: {}", dockerMachineSource);
             throw new SnapshotException("Snapshot removing failed. Snapshot attributes are not valid");
         }
 
         try {
             URL url = UriBuilder.fromUri("http://" + registry) // TODO make possible to use https here
                                 .path("/v2/{repository}/manifests/{digest}")
-                                .build(repository, dockerInstanceKey.getDigest())
+                                .build(repository, dockerMachineSource.getDigest())
                                 .toURL();
             final HttpURLConnection conn = (HttpURLConnection)url.openConnection();
             try {
@@ -388,10 +500,10 @@ public class DockerInstanceProvider implements InstanceProvider {
         }
     }
 
-    private Instance createInstance(String containerName,
-                                    Machine machine,
-                                    String imageName,
-                                    LineConsumer outputConsumer)
+    private Instance createInstance(final String containerName,
+                                    final Machine machine,
+                                    final String imageName,
+                                    final LineConsumer outputConsumer)
             throws MachineException {
         try {
             final Map<String, Map<String, String>> portsToExpose;
@@ -408,12 +520,16 @@ public class DockerInstanceProvider implements InstanceProvider {
 
                 env = new ArrayList<>(devMachineEnvVariables);
                 env.add(DockerInstanceRuntimeInfo.CHE_WORKSPACE_ID + '=' + machine.getWorkspaceId());
-                env.add(DockerInstanceRuntimeInfo.USER_TOKEN + '=' + EnvironmentContext.getCurrent().getUser().getToken());
+                env.add(DockerInstanceRuntimeInfo.USER_TOKEN + '=' + getUserToken(machine.getWorkspaceId()));
             } else {
                 portsToExpose = new HashMap<>(commonMachinePortsToExpose);
                 volumes = commonMachineSystemVolumes;
                 env = new ArrayList<>(commonMachineEnvVariables);
             }
+
+            final long machineMemory = machine.getConfig().getLimits().getRam() * 1024L * 1024L;
+            final long machineMemorySwap = memorySwapMultiplier == -1 ? -1 : (long)(machineMemory * memorySwapMultiplier);
+
             machine.getConfig()
                    .getServers()
                    .stream()
@@ -429,8 +545,8 @@ public class DockerInstanceProvider implements InstanceProvider {
             final HostConfig hostConfig = new HostConfig().withBinds(volumes)
                                                           .withExtraHosts(allMachinesExtraHosts)
                                                           .withPublishAllPorts(true)
-                                                          .withMemorySwap(-1)
-                                                          .withMemory((long)machine.getConfig().getLimits().getRam() * 1024 * 1024)
+                                                          .withMemorySwap(machineMemorySwap)
+                                                          .withMemory(machineMemory)
                                                           .withPrivileged(privilegeMode);
             final ContainerConfig config = new ContainerConfig().withImage(imageName)
                                                                 .withExposedPorts(portsToExpose)
@@ -444,6 +560,8 @@ public class DockerInstanceProvider implements InstanceProvider {
             final DockerNode node = dockerMachineFactory.createNode(machine.getWorkspaceId(), containerId);
             if (machine.getConfig().isDev()) {
                 node.bindWorkspace();
+                LOG.info("Machine with id '{}' backed by container '{}' has been deployed on node '{}'",
+                         machine.getId(), containerId, node.getHost());
             }
 
             dockerInstanceStopDetector.startDetection(containerId, machine.getId());
@@ -458,12 +576,10 @@ public class DockerInstanceProvider implements InstanceProvider {
         }
     }
 
-    String generateContainerName(String workspaceId, String displayName) {
-        String userName = EnvironmentContext.getCurrent().getUser().getName();
-        final String containerName = userName + '_' + workspaceId + '_' + displayName + '_';
-
-        // removing all not allowed characters + generating random name suffix
-        return NameGenerator.generate(containerName.toLowerCase().replaceAll("[^a-z0-9_-]+", ""), 5);
+    // workspaceId parameter is required, because in case of separate storage for tokens
+    // you need to know exactly which workspace and which user to apply the token.
+    protected String getUserToken(String wsId) {
+        return EnvironmentContext.getCurrent().getSubject().getToken();
     }
 
     /**

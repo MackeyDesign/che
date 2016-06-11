@@ -15,7 +15,7 @@ import com.google.inject.Singleton;
 import com.google.web.bindery.event.shared.EventBus;
 
 import org.eclipse.che.api.core.ErrorCodes;
-import org.eclipse.che.api.git.gwt.client.GitServiceClient;
+import org.eclipse.che.ide.api.git.GitServiceClient;
 import org.eclipse.che.api.git.shared.Branch;
 import org.eclipse.che.api.git.shared.MergeResult;
 import org.eclipse.che.api.workspace.shared.dto.ProjectConfigDto;
@@ -24,7 +24,7 @@ import org.eclipse.che.ide.api.editor.EditorAgent;
 import org.eclipse.che.ide.api.editor.EditorPartPresenter;
 import org.eclipse.che.ide.api.event.FileContentUpdateEvent;
 import org.eclipse.che.ide.api.notification.NotificationManager;
-import org.eclipse.che.ide.api.project.tree.VirtualFile;
+import org.eclipse.che.ide.api.resources.VirtualFile;
 import org.eclipse.che.ide.commons.exception.ServerException;
 import org.eclipse.che.ide.ext.git.client.GitLocalizationConstant;
 import org.eclipse.che.ide.ext.git.client.outputconsole.GitOutputConsole;
@@ -33,8 +33,8 @@ import org.eclipse.che.ide.extension.machine.client.processes.ConsolesPanelPrese
 import org.eclipse.che.ide.part.explorer.project.ProjectExplorerPresenter;
 import org.eclipse.che.ide.rest.AsyncRequestCallback;
 import org.eclipse.che.ide.rest.DtoUnmarshallerFactory;
-import org.eclipse.che.ide.ui.dialogs.ConfirmCallback;
-import org.eclipse.che.ide.ui.dialogs.DialogFactory;
+import org.eclipse.che.ide.api.dialogs.ConfirmCallback;
+import org.eclipse.che.ide.api.dialogs.DialogFactory;
 
 import javax.validation.constraints.NotNull;
 import java.util.ArrayList;
@@ -43,6 +43,7 @@ import java.util.List;
 import static org.eclipse.che.api.git.shared.BranchListRequest.LIST_LOCAL;
 import static org.eclipse.che.api.git.shared.BranchListRequest.LIST_REMOTE;
 import static org.eclipse.che.api.git.shared.MergeResult.MergeStatus.ALREADY_UP_TO_DATE;
+import static org.eclipse.che.ide.api.notification.StatusNotification.DisplayMode.FLOAT_MODE;
 import static org.eclipse.che.ide.api.notification.StatusNotification.Status.FAIL;
 import static org.eclipse.che.ide.ext.git.client.merge.Reference.RefType.LOCAL_BRANCH;
 import static org.eclipse.che.ide.ext.git.client.merge.Reference.RefType.REMOTE_BRANCH;
@@ -126,7 +127,7 @@ public class MergePresenter implements MergeView.ActionDelegate {
                                protected void onFailure(Throwable exception) {
                                    console.printError(exception.getMessage());
                                    consolesPanelPresenter.addCommandOutput(appContext.getDevMachine().getId(), console);
-                                   notificationManager.notify(constant.branchesListFailed(), FAIL, true, project);
+                                   notificationManager.notify(constant.branchesListFailed(), FAIL, FLOAT_MODE, project);
                                }
                            });
 
@@ -149,7 +150,7 @@ public class MergePresenter implements MergeView.ActionDelegate {
                                protected void onFailure(Throwable exception) {
                                    console.printError(exception.getMessage());
                                    consolesPanelPresenter.addCommandOutput(appContext.getDevMachine().getId(), console);
-                                   notificationManager.notify(constant.branchesListFailed(), FAIL, true, project);
+                                   notificationManager.notify(constant.branchesListFailed(), FAIL, FLOAT_MODE, project);
                                }
                            });
 
@@ -194,7 +195,7 @@ public class MergePresenter implements MergeView.ActionDelegate {
                               console.printError(exception.getMessage());
                               consolesPanelPresenter.addCommandOutput(appContext.getDevMachine().getId(), console);
                               notificationManager
-                                      .notify(constant.mergeFailed(), FAIL, true, appContext.getCurrentProject().getRootProject());
+                                      .notify(constant.mergeFailed(), FAIL, FLOAT_MODE, appContext.getCurrentProject().getRootProject());
                           }
                       });
     }

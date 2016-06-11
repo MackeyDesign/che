@@ -15,13 +15,14 @@ import com.google.inject.Provider;
 import com.google.inject.Singleton;
 import com.google.web.bindery.event.shared.EventBus;
 
-import org.eclipse.che.api.machine.gwt.client.events.WsAgentStateEvent;
-import org.eclipse.che.api.machine.gwt.client.events.WsAgentStateHandler;
+import org.eclipse.che.ide.api.machine.events.WsAgentStateEvent;
+import org.eclipse.che.ide.api.machine.events.WsAgentStateHandler;
 import org.eclipse.che.ide.actions.StopMachineAction;
 import org.eclipse.che.ide.actions.StopWorkspaceAction;
 import org.eclipse.che.ide.api.action.ActionManager;
 import org.eclipse.che.ide.api.action.DefaultActionGroup;
 import org.eclipse.che.ide.api.action.IdeActions;
+import org.eclipse.che.ide.api.app.AppContext;
 import org.eclipse.che.ide.api.constraints.Constraints;
 import org.eclipse.che.ide.api.extension.Extension;
 import org.eclipse.che.ide.api.icon.Icon;
@@ -45,6 +46,7 @@ import org.eclipse.che.ide.extension.machine.client.command.valueproviders.Serve
 import org.eclipse.che.ide.extension.machine.client.machine.console.ClearConsoleAction;
 import org.eclipse.che.ide.extension.machine.client.machine.console.MachineConsoleToolbar;
 import org.eclipse.che.ide.extension.machine.client.outputspanel.OutputsContainerPresenter;
+import org.eclipse.che.ide.extension.machine.client.perspective.OperationsPerspective;
 import org.eclipse.che.ide.extension.machine.client.processes.ConsolesPanelPresenter;
 import org.eclipse.che.ide.extension.machine.client.processes.NewTerminalAction;
 import org.eclipse.che.ide.extension.machine.client.targets.EditTargetsAction;
@@ -81,6 +83,7 @@ public class MachineExtension {
     public MachineExtension(MachineResources machineResources,
                             final EventBus eventBus,
                             final WorkspaceAgent workspaceAgent,
+                            final AppContext   appContext,
                             final ConsolesPanelPresenter consolesPanelPresenter,
                             final Provider<ServerPortProvider> machinePortProvider,
                             final OutputsContainerPresenter outputsContainerPresenter,
@@ -93,12 +96,25 @@ public class MachineExtension {
             @Override
             public void onWsAgentStarted(WsAgentStateEvent event) {
                 machinePortProvider.get();
-                perspectiveManager.setPerspectiveId(PROJECT_PERSPECTIVE_ID);
 
+                /**
+                 * There is a bug in perspective management and it's unable to add Consoles part in
+                 * OperationsPerspective and ProjectPerspective directly. Following code resolves the issue.
+                 */
+
+                /* Add Outputs and Consoles to Operation perspective */
+                perspectiveManager.setPerspectiveId(OperationsPerspective.OPERATIONS_PERSPECTIVE_ID);
                 workspaceAgent.openPart(outputsContainerPresenter, PartStackType.INFORMATION);
                 workspaceAgent.openPart(consolesPanelPresenter, PartStackType.INFORMATION);
 
-                consolesPanelPresenter.newTerminal();
+                /* Add Outputs and Consoles to Project perspective */
+                perspectiveManager.setPerspectiveId(PROJECT_PERSPECTIVE_ID);
+                workspaceAgent.openPart(outputsContainerPresenter, PartStackType.INFORMATION);
+                workspaceAgent.openPart(consolesPanelPresenter, PartStackType.INFORMATION);
+
+                if (appContext.getFactory() == null) {
+                    consolesPanelPresenter.newTerminal();
+                }
             }
 
             @Override

@@ -18,7 +18,7 @@ import com.google.inject.Singleton;
 import com.google.web.bindery.event.shared.EventBus;
 
 import org.eclipse.che.api.core.model.project.ProjectConfig;
-import org.eclipse.che.api.project.gwt.client.ProjectServiceClient;
+import org.eclipse.che.ide.api.project.ProjectServiceClient;
 import org.eclipse.che.api.project.shared.dto.ItemReference;
 import org.eclipse.che.api.promises.client.Function;
 import org.eclipse.che.api.promises.client.FunctionException;
@@ -34,9 +34,9 @@ import org.eclipse.che.ide.api.event.project.CreateProjectHandler;
 import org.eclipse.che.ide.api.event.project.DeleteProjectEvent;
 import org.eclipse.che.ide.api.event.project.DeleteProjectHandler;
 import org.eclipse.che.ide.api.event.project.ProjectUpdatedEvent;
-import org.eclipse.che.ide.api.project.node.Node;
-import org.eclipse.che.ide.api.project.node.settings.NodeSettings;
-import org.eclipse.che.ide.api.project.node.settings.SettingsProvider;
+import org.eclipse.che.ide.api.data.tree.Node;
+import org.eclipse.che.ide.api.data.tree.settings.NodeSettings;
+import org.eclipse.che.ide.api.data.tree.settings.SettingsProvider;
 import org.eclipse.che.ide.dto.DtoFactory;
 import org.eclipse.che.ide.project.node.factory.NodeFactory;
 import org.eclipse.che.ide.project.node.icon.NodeIconProvider;
@@ -325,7 +325,7 @@ public class NodeManager {
 
     @Deprecated
     public static boolean isProjectOrModuleNode(Node node) {
-        return node instanceof ProjectNode || node instanceof ModuleNode;
+        return node instanceof ProjectNode;
     }
 
     protected <T> Function<T, Promise<T>> self() {

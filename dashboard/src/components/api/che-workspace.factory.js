@@ -10,6 +10,8 @@
  */
 'use strict';
 
+import {CheWorkspaceAgent} from './che-workspace-agent';
+
 /**
  * This class is handling the workspace retrieval
  * It sets to the array workspaces the current workspaces which are not temporary
@@ -21,23 +23,21 @@ export class CheWorkspace {
    * Default constructor that is using resource
    * @ngInject for Dependency injection
    */
-  constructor ($resource, $q, cheUser, cheWebsocket, lodash) {
+  constructor ($resource, $q, cheWebsocket, lodash) {
     // keep resource
     this.$resource = $resource;
-
     this.$q = $q;
     this.lodash = lodash;
-
-    this.cheUser = cheUser;
     this.cheWebsocket = cheWebsocket;
-
-    this.lodash = lodash;
 
     // current list of workspaces
     this.workspaces = [];
 
     // per Id
     this.workspacesById = new Map();
+
+    //Workspace agents per workspace id:
+    this.workspaceAgents = new Map();
 
     // listeners if workspaces are changed/updated
     this.listeners = [];
@@ -53,6 +53,7 @@ export class CheWorkspace {
         deleteWorkspace: {method: 'DELETE', url: '/api/workspace/:workspaceId'},
         updateWorkspace: {method: 'PUT', url : '/api/workspace/:workspaceId'},
         addProject: {method: 'POST', url : '/api/workspace/:workspaceId/project'},
+        deleteProject: {method: 'DELETE', url : '/api/workspace/:workspaceId/project/:path'},
         stopWorkspace: {method: 'DELETE', url : '/api/workspace/:workspaceId/runtime'},
         startWorkspace: {method: 'POST', url : '/api/workspace/:workspaceId/runtime?environment=:envName'},
         addCommand: {method: 'POST', url: '/api/workspace/:workspaceId/command'}
@@ -61,14 +62,34 @@ export class CheWorkspace {
   }
 
   getWorkspaceAgent(workspaceId) {
+    if (this.workspaceAgents.has(workspaceId)) {
+      return this.workspaceAgents.get(workspaceId);
+    }
+
     let runtimeConfig = this.getWorkspaceById(workspaceId).runtime;
-    let wsAgentLink;
     if (runtimeConfig) {
-      wsAgentLink = this.lodash.find(runtimeConfig.links, (link) => {
+      let wsAgentLink = this.lodash.find(runtimeConfig.links, (link) => {
         return link.rel === 'wsagent';
       });
+
+      if (!wsAgentLink) {
+        return null;
+      }
+
+      let workspaceAgentData = {path : wsAgentLink.href};
+      let wsagent = new CheWorkspaceAgent(this.$resource, this.$q, this.cheWebsocket, workspaceAgentData);
+      this.workspaceAgents.set(workspaceId, wsagent);
+      return wsagent;
     }
-    return wsAgentLink ? wsAgentLink.href.replace(/^https?:\/\//,'').replace('/api/ext', '') : '';
+    return null;
+  }
+
+/**
+ * Gets all workspace agents of this remote
+ * @returns {Map}
+ */
+  getWorkspaceAgents() {
+    return this.workspaceAgents;
   }
 
   /**
@@ -178,32 +199,49 @@ export class CheWorkspace {
     return promise;
   }
 
+  /**
+   * Deletes a project of the workspace by it's path
+   * @param workspaceId the workspace ID required to delete a project
+   * @param path path to project to be deleted
+   * @returns {*}
+   */
+  deleteProject(workspaceId, path) {
+    let promise = this.remoteWorkspaceAPI.deleteProject({workspaceId : workspaceId, path: path}).$promise;
+    return promise;
+  }
+
+  /**
+   * Returns workspace config
+   * @param config
+   * @param workspaceName
+   * @param recipeUrl
+   * @param ram
+   * @returns {*}
+   */
+  formWorkspaceConfig(config, workspaceName, recipeUrl, ram) {
+    config = config || {};
+    config.name = workspaceName;
+    config.projects = [];
+    config.defaultEnv = workspaceName;
+    config.description = null;
+    ram = ram || 2048;
+    config.environments = [{
+      'name': workspaceName,
+      'recipe': null,
+      'machineConfigs': [{
+        'name': 'ws-machine',
+        'limits': {'ram': ram},
+        'type': 'docker',
+        'source': {'location': recipeUrl, 'type': 'dockerfile'},
+        'dev': true
+      }]
+    }];
+
+    return config;
+  }
 
   createWorkspace(accountId, workspaceName, recipeUrl, ram, attributes) {
-    let data = {
-      'environments': [],
-      'name': workspaceName,
-      'projects': [],
-      'defaultEnv': workspaceName,
-      'description': null,
-      'commands': []
-    };
-
-    let memory = ram || 2048;
-
-    let envEntry = {
-        'name': workspaceName,
-        'recipe': null,
-        'machineConfigs': [{
-          'name': 'ws-machine',
-          'limits': {'ram': memory},
-          'type': 'docker',
-          'source': {'location': recipeUrl, 'type': 'dockerfile'},
-          'dev': true
-        }]
-      };
-
-    data.environments.push(envEntry);
+    let data = this.formWorkspaceConfig({}, workspaceName,recipeUrl, ram);
 
     let attrs = this.lodash.map(this.lodash.pairs(attributes || {}), (item) => { return item[0] + ':' + item[1]});
     let promise = this.remoteWorkspaceAPI.create({accountId : accountId, attribute: attrs}, data).$promise;
@@ -275,37 +313,41 @@ export class CheWorkspace {
   }
 
   /**
+   * Gets the map of projects by workspace id.
+   * @returns
+   */
+  getWorkspaceProjects() {
+    let workspaceProjects = {};
+    this.workspacesById.forEach((workspace) => {
+      let projects = workspace.config.projects;
+      projects.forEach((project) => {
+        project.workspaceId = workspace.id;
+        project.workspaceName = workspace.config.name;
+      });
+
+      workspaceProjects[workspace.id] = projects;
+    });
+
+    return workspaceProjects;
+  }
+
+  getAllProjects() {
+    let projects = this.lodash.pluck(this.workspaces, 'config.projects');
+    return [].concat.apply([], projects);
+  }
+
+  /**
    * Gets websocket for a given workspace. It needs to have fetched first the runtime configuration of the workspace
    * @param workspaceId the id of the workspace
    * @returns {string}
    */
   getWebsocketUrl(workspaceId) {
     let workspace = this.workspacesById.get(workspaceId);
-    if (!workspace || !workspace.runtime) {
+    if (!workspace || !workspace.runtime || !workspace.runtime.devMachine) {
       return '';
     }
-    let runtimeData = workspace.runtime;
-
-    // extract the Websocket URL of the runtime
-    let servers = runtimeData.devMachine.runtime.servers;
-
-    var wsagentServerAddress;
-    for (var key in servers) {
-      let server = servers[key];
-      if ('wsagent' === server.ref) {
-        wsagentServerAddress = server.address;
-      }
-    }
-    let endpoint = runtimeData.devMachine.runtime.envVariables.CHE_API_ENDPOINT;
-
-    var contextPath;
-    if (endpoint.endsWith('/ide/api')) {
-      contextPath = 'ide';
-    } else {
-      contextPath = 'api';
-    }
-
-    return 'ws://' + wsagentServerAddress + '/' + contextPath + '/ext/ws/' + workspaceId;
+    let websocketLink = this.lodash.find(workspace.runtime.devMachine.links, l => l.rel === "wsagent.websocket");
+    return websocketLink ? websocketLink.href : '';
   }
 
   getIdeUrl(workspaceName) {
@@ -351,7 +393,7 @@ export class CheWorkspace {
           return;
         }
 
-        this.statusDefers[workspaceId][message.eventType].forEach((defer) => {defer.resolve()});
+        this.statusDefers[workspaceId][message.eventType].forEach((defer) => {defer.resolve(message)});
         this.statusDefers[workspaceId][message.eventType].length = 0;
       });
     }

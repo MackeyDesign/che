@@ -21,9 +21,9 @@ import com.google.inject.Provider;
 import com.google.inject.Singleton;
 import com.google.web.bindery.event.shared.EventBus;
 
-import org.eclipse.che.api.machine.gwt.client.events.WsAgentStateEvent;
-import org.eclipse.che.api.machine.gwt.client.events.WsAgentStateHandler;
-import org.eclipse.che.api.project.gwt.client.ProjectServiceClient;
+import org.eclipse.che.ide.api.machine.events.WsAgentStateEvent;
+import org.eclipse.che.ide.api.machine.events.WsAgentStateHandler;
+import org.eclipse.che.ide.api.project.ProjectServiceClient;
 import org.eclipse.che.api.project.shared.Constants;
 import org.eclipse.che.api.project.shared.dto.ItemReference;
 import org.eclipse.che.api.promises.client.Operation;
@@ -59,7 +59,7 @@ import org.eclipse.che.ide.api.parts.PerspectiveManager;
 import org.eclipse.che.ide.api.parts.ProjectExplorerPart;
 import org.eclipse.che.ide.api.parts.base.BasePresenter;
 import org.eclipse.che.ide.api.project.node.HasStorablePath;
-import org.eclipse.che.ide.api.project.node.Node;
+import org.eclipse.che.ide.api.data.tree.Node;
 import org.eclipse.che.ide.api.selection.Selection;
 import org.eclipse.che.ide.part.explorer.project.ProjectExplorerView.ActionDelegate;
 import org.eclipse.che.ide.part.explorer.project.synchronize.ProjectConfigSynchronizationListener;
@@ -71,7 +71,6 @@ import org.eclipse.che.ide.project.event.ResourceNodeRenamedEvent.ResourceNodeRe
 import org.eclipse.che.ide.project.node.FileReferenceNode;
 import org.eclipse.che.ide.project.node.FolderReferenceNode;
 import org.eclipse.che.ide.project.node.ItemReferenceBasedNode;
-import org.eclipse.che.ide.project.node.ModuleNode;
 import org.eclipse.che.ide.project.node.NodeManager;
 import org.eclipse.che.ide.project.node.ProjectNode;
 import org.eclipse.che.ide.projecttype.wizard.presenter.ProjectWizardPresenter;
@@ -92,6 +91,8 @@ import java.util.Map;
 
 import static org.eclipse.che.api.promises.client.callback.PromiseHelper.newCallback;
 import static org.eclipse.che.api.promises.client.callback.PromiseHelper.newPromise;
+import static org.eclipse.che.ide.api.notification.StatusNotification.DisplayMode.FLOAT_MODE;
+import static org.eclipse.che.ide.api.notification.StatusNotification.DisplayMode.NOT_EMERGE_MODE;
 import static org.eclipse.che.ide.api.notification.StatusNotification.Status.FAIL;
 
 /**
@@ -197,7 +198,7 @@ public class ProjectExplorerPresenter extends BasePresenter implements ActionDel
     public void onWsAgentStopped(WsAgentStateEvent event) {
         view.removeAllNodes();
         notificationManager.notify(locale.projectExplorerExtensionServerStopped(),
-                                   locale.projectExplorerExtensionServerStoppedDescription(), FAIL, false);
+                                   locale.projectExplorerExtensionServerStoppedDescription(), FAIL, NOT_EMERGE_MODE);
     }
 
     /** {@inheritDoc} */
@@ -288,7 +289,7 @@ public class ProjectExplorerPresenter extends BasePresenter implements ActionDel
                 }).catchError(new Operation<PromiseError>() {
                     @Override
                     public void apply(PromiseError arg) throws OperationException {
-                        notificationManager.notify(locale.projectExplorerProjectConfigurationFailed(descriptor.getName()), FAIL, true,
+                        notificationManager.notify(locale.projectExplorerProjectConfigurationFailed(descriptor.getName()), FAIL, FLOAT_MODE,
                                                    descriptor);
                         Log.warn(getClass(), arg.getMessage());
                     }
@@ -397,12 +398,7 @@ public class ProjectExplorerPresenter extends BasePresenter implements ActionDel
             }
 
             node.setData(newDTO);
-        } else if (event.getNode() instanceof ModuleNode) {
-            ProjectConfigDto newDTO = (ProjectConfigDto)event.getNewDataObject();
-            ModuleNode node = (ModuleNode)event.getNode();
-            node.setData(newDTO);
         }
-
         if (!view.reIndex(oldNodeId, event.getNode())) {
             Log.info(getClass(), "Node wasn't re-indexed");
         }
@@ -485,7 +481,7 @@ public class ProjectExplorerPresenter extends BasePresenter implements ActionDel
             @Override
             public void apply(PromiseError arg) throws OperationException {
                 Log.warn(getClass(), arg.getMessage());
-                notificationManager.notify(locale.failedToUpdateProject(project.getName()), FAIL, false, project);
+                notificationManager.notify(locale.failedToUpdateProject(project.getName()), FAIL, NOT_EMERGE_MODE, project);
             }
         });
     }
@@ -511,7 +507,7 @@ public class ProjectExplorerPresenter extends BasePresenter implements ActionDel
 
     /** {@inheritDoc} */
     @Override
-    public SVGResource getTitleSVGImage() {
+    public SVGResource getTitleImage() {
         return resources.projectExplorerPartIcon();
     }
 

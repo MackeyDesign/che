@@ -12,12 +12,12 @@ package org.eclipse.che.ide.extension.machine.client.machine;
 
 import com.google.web.bindery.event.shared.EventBus;
 
-import org.eclipse.che.api.machine.gwt.client.MachineManager;
+import org.eclipse.che.ide.api.machine.MachineManager;
 import org.eclipse.che.api.machine.shared.dto.MachineConfigDto;
 import org.eclipse.che.api.machine.shared.dto.MachineDto;
 import org.eclipse.che.api.machine.shared.dto.event.MachineStatusEvent;
-import org.eclipse.che.api.workspace.gwt.client.event.WorkspaceStartedEvent;
-import org.eclipse.che.api.workspace.gwt.client.event.WorkspaceStartedHandler;
+import org.eclipse.che.ide.api.workspace.event.WorkspaceStartedEvent;
+import org.eclipse.che.ide.api.workspace.event.WorkspaceStartedHandler;
 import org.eclipse.che.api.workspace.shared.dto.WorkspaceDto;
 import org.eclipse.che.ide.api.app.AppContext;
 import org.eclipse.che.ide.api.notification.NotificationManager;
@@ -40,7 +40,7 @@ import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
 
 import static org.eclipse.che.ide.api.notification.StatusNotification.Status.PROGRESS;
-import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -115,7 +115,7 @@ public class MachineStateNotifierTest {
         when(appContext.getWorkspace()).thenReturn(workspace);
         when(workspace.getId()).thenReturn(SOME_TEXT);
         when(machineConfig.getName()).thenReturn(SOME_TEXT);
-        when(notificationManager.notify(anyString(), eq(PROGRESS), anyBoolean())).thenReturn(notification);
+        when(notificationManager.notify(anyString(), eq(PROGRESS), anyObject())).thenReturn(notification);
         stateNotifier.trackMachine(machine, MachineManager.MachineOperationType.START);
 
         verify(notification).setTitle(eq(SOME_TEXT));
@@ -132,7 +132,7 @@ public class MachineStateNotifierTest {
         when(appContext.getWorkspace()).thenReturn(workspace);
         when(workspace.getId()).thenReturn(SOME_TEXT);
         when(machineConfig.getName()).thenReturn(SOME_TEXT);
-        when(notificationManager.notify(anyString(), eq(PROGRESS), anyBoolean())).thenReturn(notification);
+        when(notificationManager.notify(anyString(), eq(PROGRESS), anyObject())).thenReturn(notification);
         stateNotifier.trackMachine(machine, MachineManager.MachineOperationType.DESTROY);
 
         verify(notification).setTitle(eq(SOME_TEXT));

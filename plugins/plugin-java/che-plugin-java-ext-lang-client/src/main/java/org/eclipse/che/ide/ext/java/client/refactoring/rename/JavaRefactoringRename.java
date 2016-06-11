@@ -18,11 +18,22 @@ import org.eclipse.che.api.promises.client.Operation;
 import org.eclipse.che.api.promises.client.OperationException;
 import org.eclipse.che.api.promises.client.Promise;
 import org.eclipse.che.api.promises.client.PromiseError;
+import org.eclipse.che.ide.api.dialogs.CancelCallback;
+import org.eclipse.che.ide.api.dialogs.ConfirmCallback;
+import org.eclipse.che.ide.api.dialogs.DialogFactory;
 import org.eclipse.che.ide.api.editor.EditorWithAutoSave;
+import org.eclipse.che.ide.api.editor.document.Document;
+import org.eclipse.che.ide.api.editor.link.HasLinkedMode;
+import org.eclipse.che.ide.api.editor.link.LinkedMode;
+import org.eclipse.che.ide.api.editor.link.LinkedModel;
+import org.eclipse.che.ide.api.editor.link.LinkedModelData;
+import org.eclipse.che.ide.api.editor.link.LinkedModelGroup;
+import org.eclipse.che.ide.api.editor.text.Position;
+import org.eclipse.che.ide.api.editor.texteditor.TextEditor;
+import org.eclipse.che.ide.api.editor.texteditor.TextEditorPresenter;
 import org.eclipse.che.ide.api.event.FileEvent;
 import org.eclipse.che.ide.api.event.FileEventHandler;
 import org.eclipse.che.ide.api.notification.NotificationManager;
-import org.eclipse.che.ide.api.text.Position;
 import org.eclipse.che.ide.dto.DtoFactory;
 import org.eclipse.che.ide.ext.java.client.JavaLocalizationConstant;
 import org.eclipse.che.ide.ext.java.client.projecttree.JavaSourceFolderUtil;
@@ -39,23 +50,13 @@ import org.eclipse.che.ide.ext.java.shared.dto.refactoring.CreateRenameRefactori
 import org.eclipse.che.ide.ext.java.shared.dto.refactoring.LinkedRenameRefactoringApply;
 import org.eclipse.che.ide.ext.java.shared.dto.refactoring.RefactoringResult;
 import org.eclipse.che.ide.ext.java.shared.dto.refactoring.RenameRefactoringSession;
-import org.eclipse.che.ide.jseditor.client.document.Document;
-import org.eclipse.che.ide.jseditor.client.link.HasLinkedMode;
-import org.eclipse.che.ide.jseditor.client.link.LinkedMode;
-import org.eclipse.che.ide.jseditor.client.link.LinkedModel;
-import org.eclipse.che.ide.jseditor.client.link.LinkedModelData;
-import org.eclipse.che.ide.jseditor.client.link.LinkedModelGroup;
-import org.eclipse.che.ide.jseditor.client.texteditor.EmbeddedTextEditorPresenter;
-import org.eclipse.che.ide.jseditor.client.texteditor.TextEditor;
-import org.eclipse.che.ide.ui.dialogs.CancelCallback;
-import org.eclipse.che.ide.ui.dialogs.ConfirmCallback;
-import org.eclipse.che.ide.ui.dialogs.DialogFactory;
 
 import javax.validation.constraints.NotNull;
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.eclipse.che.ide.api.event.FileEvent.FileOperation.CLOSE;
+import static org.eclipse.che.ide.api.notification.StatusNotification.DisplayMode.FLOAT_MODE;
 import static org.eclipse.che.ide.api.notification.StatusNotification.Status.FAIL;
 import static org.eclipse.che.ide.ext.java.shared.dto.refactoring.CreateRenameRefactoring.RenameType.JAVA_ELEMENT;
 import static org.eclipse.che.ide.ext.java.shared.dto.refactoring.RefactoringStatus.ERROR;
@@ -250,12 +251,30 @@ public class JavaRefactoringRename implements FileEventHandler {
         applyModelPromise.then(new Operation<RefactoringResult>() {
             @Override
             public void apply(RefactoringResult result) throws OperationException {
-                if (result.getSeverity() > WARNING) {
-                    undoChanges();
+                switch (result.getSeverity()) {
+                    case OK:
+                    case INFO:
+                        RefactorInfo refactorInfo = RefactorInfo.of(RefactoredItemType.JAVA_ELEMENT, null);
 
-                    notificationManager.notify(locale.failedToRename(), result.getEntries().get(0).getMessage(), FAIL, true);
-                } else {
-                    onTargetRenamed(result);
+                        refactoringUpdater.updateAfterRefactoring(refactorInfo, result.getChanges());
+                        String projectPath = textEditor.getDocument().getFile().getProject().getProjectConfig().getPath();
+                        refactoringServiceClient.reindexProject(projectPath);
+                        break;
+                    case WARNING:
+                    case ERROR:
+                        enableAutoSave();
+
+                        undoChanges();
+
+                        showWarningDialog();
+                        break;
+                    case FATAL:
+                        undoChanges();
+
+                        notificationManager.notify(locale.failedToRename(), result.getEntries().get(0).getMessage(), FAIL, FLOAT_MODE);
+                        break;
+                    default:
+                        break;
                 }
             }
         }).catchError(new Operation<PromiseError>() {
@@ -265,7 +284,7 @@ public class JavaRefactoringRename implements FileEventHandler {
 
                 undoChanges();
 
-                notificationManager.notify(locale.failedToRename(), arg.getMessage(), FAIL, true);
+                notificationManager.notify(locale.failedToRename(), arg.getMessage(), FAIL, FLOAT_MODE);
             }
         });
     }
@@ -277,30 +296,8 @@ public class JavaRefactoringRename implements FileEventHandler {
     }
 
     private void undoChanges() {
-        if (linkedEditor instanceof EmbeddedTextEditorPresenter) {
-            ((EmbeddedTextEditorPresenter)linkedEditor).getUndoRedo().undo();
-        }
-    }
-
-    private void onTargetRenamed(RefactoringResult result) {
-        enableAutoSave();
-
-        switch (result.getSeverity()) {
-            case OK:
-            case INFO:
-                RefactorInfo refactorInfo = RefactorInfo.of(RefactoredItemType.JAVA_ELEMENT, null);
-                refactoringUpdater.updateAfterRefactoring(refactorInfo, result.getChanges());
-                refactoringServiceClient.reindexProject(textEditor.getDocument().getFile().getProject().getProjectConfig().getPath());
-                break;
-            case WARNING:
-            case ERROR:
-                undoChanges();
-
-                showWarningDialog();
-                break;
-            case FATAL:
-            default:
-                break;
+        if (linkedEditor instanceof TextEditorPresenter) {
+            ((TextEditorPresenter)linkedEditor).getUndoRedo().undo();
         }
     }
 

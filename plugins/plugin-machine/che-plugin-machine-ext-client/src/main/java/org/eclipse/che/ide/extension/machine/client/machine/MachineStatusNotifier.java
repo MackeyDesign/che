@@ -16,8 +16,8 @@ import com.google.web.bindery.event.shared.EventBus;
 
 import org.eclipse.che.api.core.model.machine.Machine;
 import org.eclipse.che.api.machine.shared.dto.event.MachineStatusEvent;
-import org.eclipse.che.api.workspace.gwt.client.event.WorkspaceStartedEvent;
-import org.eclipse.che.api.workspace.gwt.client.event.WorkspaceStartedHandler;
+import org.eclipse.che.ide.api.workspace.event.WorkspaceStartedEvent;
+import org.eclipse.che.ide.api.workspace.event.WorkspaceStartedHandler;
 import org.eclipse.che.ide.api.app.AppContext;
 import org.eclipse.che.ide.api.notification.NotificationManager;
 import org.eclipse.che.ide.api.notification.StatusNotification;
@@ -33,8 +33,9 @@ import org.eclipse.che.ide.websocket.rest.Unmarshallable;
 
 import javax.validation.constraints.NotNull;
 
-import static org.eclipse.che.api.machine.gwt.client.MachineManager.MachineOperationType;
-import static org.eclipse.che.api.machine.gwt.client.MachineManager.MachineOperationType.RESTART;
+import static org.eclipse.che.ide.api.machine.MachineManager.MachineOperationType;
+import static org.eclipse.che.ide.api.machine.MachineManager.MachineOperationType.RESTART;
+import static org.eclipse.che.ide.api.notification.StatusNotification.DisplayMode.NOT_EMERGE_MODE;
 import static org.eclipse.che.ide.api.notification.StatusNotification.Status.FAIL;
 import static org.eclipse.che.ide.api.notification.StatusNotification.Status.PROGRESS;
 import static org.eclipse.che.ide.api.notification.StatusNotification.Status.SUCCESS;
@@ -104,7 +105,7 @@ class MachineStatusNotifier {
         final String workspaceId = appContext.getWorkspace().getId();
         final String wsChannel = MACHINE_STATUS_WS_CHANNEL + workspaceId + ":" + machineName;
 
-        final StatusNotification notification = notificationManager.notify("", PROGRESS, false);
+        final StatusNotification notification = notificationManager.notify("", PROGRESS, NOT_EMERGE_MODE);
 
         final Unmarshallable<MachineStatusEvent> unmarshaller = dtoUnmarshallerFactory.newWSUnmarshaller(MachineStatusEvent.class);
         final MessageHandler messageHandler = new SubscriptionHandler<MachineStatusEvent>(unmarshaller) {

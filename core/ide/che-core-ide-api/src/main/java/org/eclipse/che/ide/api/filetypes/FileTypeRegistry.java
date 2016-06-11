@@ -10,7 +10,7 @@
  *******************************************************************************/
 package org.eclipse.che.ide.api.filetypes;
 
-import org.eclipse.che.ide.api.project.tree.VirtualFile;
+import org.eclipse.che.ide.api.resources.VirtualFile;
 
 import java.util.List;
 
@@ -52,15 +52,6 @@ public interface FileTypeRegistry {
      * @return file type or default file type if no file type found
      */
     FileType getFileTypeByExtension(String extension);
-
-    /**
-     * Returns the file type for the specified MIME-type.
-     *
-     * @param mimeType
-     *         MIME-type for which file type need to find
-     * @return file type or default file type if no file type found
-     */
-    FileType getFileTypeByMimeType(String mimeType);
 
     /**
      * Returns the file type which pattern matches the specified file name.

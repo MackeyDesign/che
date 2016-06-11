@@ -20,16 +20,16 @@ import org.eclipse.che.ide.api.app.CurrentProject;
 import org.eclipse.che.ide.api.editor.EditorAgent;
 import org.eclipse.che.ide.api.editor.EditorInput;
 import org.eclipse.che.ide.api.project.node.HasProjectConfig;
-import org.eclipse.che.ide.api.project.node.Node;
-import org.eclipse.che.ide.api.project.tree.VirtualFile;
+import org.eclipse.che.ide.api.data.tree.Node;
+import org.eclipse.che.ide.api.resources.VirtualFile;
 import org.eclipse.che.ide.ext.java.client.navigation.service.JavaNavigationService;
 import org.eclipse.che.ide.ext.java.client.project.node.JavaNodeManager;
 import org.eclipse.che.ide.ext.java.shared.dto.Region;
 import org.eclipse.che.ide.ext.java.shared.dto.model.CompilationUnit;
 import org.eclipse.che.ide.ext.java.shared.dto.model.Member;
-import org.eclipse.che.ide.jseditor.client.document.Document;
-import org.eclipse.che.ide.jseditor.client.text.LinearRange;
-import org.eclipse.che.ide.jseditor.client.texteditor.EmbeddedTextEditorPresenter;
+import org.eclipse.che.ide.api.editor.document.Document;
+import org.eclipse.che.ide.api.editor.text.LinearRange;
+import org.eclipse.che.ide.api.editor.texteditor.TextEditorPresenter;
 import org.eclipse.che.ide.part.explorer.project.ProjectExplorerPresenter;
 import org.eclipse.che.ide.ui.loaders.request.LoaderFactory;
 import org.eclipse.che.ide.ui.loaders.request.MessageLoader;
@@ -74,23 +74,23 @@ public class FileStructurePresenterTest {
     private JavaNodeManager          javaNodeManager;
 
     @Mock
-    private EmbeddedTextEditorPresenter editorPartPresenter;
+    private TextEditorPresenter      editorPartPresenter;
     @Mock
-    private EditorInput                 editorInput;
+    private EditorInput              editorInput;
     @Mock
-    private VirtualFile                 virtualFile;
+    private VirtualFile              virtualFile;
     @Mock
-    private HasProjectConfig            hasProjectConfig;
+    private HasProjectConfig         hasProjectConfig;
     @Mock
-    private ProjectConfigDto            profileConfig;
+    private ProjectConfigDto         profileConfig;
     @Mock
-    private CurrentProject              currentProject;
+    private CurrentProject           currentProject;
     @Mock
-    private Promise<CompilationUnit>    promice;
+    private Promise<CompilationUnit> promice;
     @Mock
-    private Promise<Node>               nodePromise;
+    private Promise<Node>            nodePromise;
     @Mock
-    private CompilationUnit             compilationUnit;
+    private CompilationUnit          compilationUnit;
     @Mock
     private Member                      member;
     @Mock

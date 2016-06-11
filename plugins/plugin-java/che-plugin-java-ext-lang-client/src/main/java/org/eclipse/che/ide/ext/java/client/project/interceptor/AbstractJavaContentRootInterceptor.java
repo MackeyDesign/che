@@ -14,8 +14,8 @@ import org.eclipse.che.api.promises.client.Promise;
 import org.eclipse.che.api.promises.client.js.Promises;
 import org.eclipse.che.api.workspace.shared.dto.ProjectConfigDto;
 import org.eclipse.che.commons.annotation.Nullable;
-import org.eclipse.che.ide.api.project.node.Node;
-import org.eclipse.che.ide.api.project.node.interceptor.NodeInterceptor;
+import org.eclipse.che.ide.api.data.tree.Node;
+import org.eclipse.che.ide.api.data.tree.NodeInterceptor;
 import org.eclipse.che.ide.ext.java.client.project.node.JavaNodeManager;
 import org.eclipse.che.ide.ext.java.client.project.settings.JavaNodeSettings;
 import org.eclipse.che.ide.ext.java.shared.ContentRoot;
@@ -75,11 +75,20 @@ public abstract class AbstractJavaContentRootInterceptor implements NodeIntercep
         final ProjectConfigDto projectConfig = folderNode.getProjectConfig();
 
         String srcFolder = _getSourceFolder(projectConfig, getSrcFolderAttribute());
+        if (srcFolder == null) {
+            return null;
+        }
+
         if (folderNode.getStorablePath().endsWith(srcFolder)) {
             return ContentRoot.SOURCE;
         }
 
         String testSrcFolder = _getSourceFolder(projectConfig, getTestSrcFolderAttribute());
+
+        if (testSrcFolder == null) {
+            return null;
+        }
+
         if (folderNode.getStorablePath().endsWith(testSrcFolder)) {
             return ContentRoot.TEST_SOURCE;
         }
@@ -90,7 +99,7 @@ public abstract class AbstractJavaContentRootInterceptor implements NodeIntercep
     private String _getSourceFolder(ProjectConfigDto projectConfig, String srcAttribute) {
         Map<String, List<String>> attributes = projectConfig.getAttributes();
         if (!attributes.containsKey(srcAttribute)) {
-            return "";
+            return null;
         }
 
         List<String> values = attributes.get(srcAttribute);

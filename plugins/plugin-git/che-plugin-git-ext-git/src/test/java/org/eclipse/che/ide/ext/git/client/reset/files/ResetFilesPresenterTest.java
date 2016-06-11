@@ -17,8 +17,8 @@ import org.eclipse.che.api.git.shared.ResetRequest;
 import org.eclipse.che.api.git.shared.Status;
 import org.eclipse.che.ide.ext.git.client.BaseTest;
 import org.eclipse.che.ide.rest.AsyncRequestCallback;
-import org.eclipse.che.ide.ui.dialogs.ConfirmCallback;
-import org.eclipse.che.ide.ui.dialogs.message.MessageDialog;
+import org.eclipse.che.ide.api.dialogs.ConfirmCallback;
+import org.eclipse.che.ide.api.dialogs.MessageDialog;
 import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.invocation.InvocationOnMock;
@@ -51,9 +51,6 @@ public class ResetFilesPresenterTest extends BaseTest {
     @Override
     public void disarm() {
         super.disarm();
-
-        when(appContext.getWorkspaceId()).thenReturn("id");
-
         presenter = new ResetFilesPresenter(view,
                                             service,
                                             appContext,

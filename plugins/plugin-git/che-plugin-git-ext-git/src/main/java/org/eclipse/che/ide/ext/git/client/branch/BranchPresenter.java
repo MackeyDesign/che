@@ -15,10 +15,10 @@ import com.google.inject.Singleton;
 import com.google.web.bindery.event.shared.EventBus;
 
 import org.eclipse.che.api.core.ErrorCodes;
-import org.eclipse.che.api.git.gwt.client.GitServiceClient;
+import org.eclipse.che.ide.api.git.GitServiceClient;
 import org.eclipse.che.api.git.shared.Branch;
 import org.eclipse.che.api.git.shared.CheckoutRequest;
-import org.eclipse.che.api.project.gwt.client.ProjectServiceClient;
+import org.eclipse.che.ide.api.project.ProjectServiceClient;
 import org.eclipse.che.api.project.shared.dto.ItemReference;
 import org.eclipse.che.api.promises.client.Operation;
 import org.eclipse.che.api.promises.client.OperationException;
@@ -33,7 +33,7 @@ import org.eclipse.che.ide.api.event.FileContentUpdateEvent;
 import org.eclipse.che.ide.api.event.FileEvent;
 import org.eclipse.che.ide.api.event.project.ProjectUpdatedEvent;
 import org.eclipse.che.ide.api.notification.NotificationManager;
-import org.eclipse.che.ide.api.project.tree.VirtualFile;
+import org.eclipse.che.ide.api.resources.VirtualFile;
 import org.eclipse.che.ide.dto.DtoFactory;
 import org.eclipse.che.ide.ext.git.client.GitLocalizationConstant;
 import org.eclipse.che.ide.ext.git.client.outputconsole.GitOutputConsole;
@@ -42,15 +42,15 @@ import org.eclipse.che.ide.extension.machine.client.processes.ConsolesPanelPrese
 import org.eclipse.che.ide.rest.AsyncRequestCallback;
 import org.eclipse.che.ide.rest.DtoUnmarshallerFactory;
 import org.eclipse.che.ide.rest.Unmarshallable;
-import org.eclipse.che.ide.ui.dialogs.ConfirmCallback;
-import org.eclipse.che.ide.ui.dialogs.DialogFactory;
-import org.eclipse.che.ide.ui.dialogs.InputCallback;
+import org.eclipse.che.ide.api.dialogs.ConfirmCallback;
+import org.eclipse.che.ide.api.dialogs.DialogFactory;
+import org.eclipse.che.ide.api.dialogs.InputCallback;
 
 import javax.validation.constraints.NotNull;
-
 import java.util.List;
 
 import static org.eclipse.che.api.git.shared.BranchListRequest.LIST_ALL;
+import static org.eclipse.che.ide.api.notification.StatusNotification.DisplayMode.FLOAT_MODE;
 import static org.eclipse.che.ide.api.notification.StatusNotification.Status.FAIL;
 import static org.eclipse.che.ide.util.ExceptionUtils.getErrorCode;
 
@@ -241,7 +241,7 @@ public class BranchPresenter implements BranchView.ActionDelegate {
                                               @Override
                                               protected void onFailure(Throwable exception) {
                                                   notificationManager
-                                                          .notify(exception.getLocalizedMessage(), FAIL, true, project.getProjectConfig());
+                                                          .notify(exception.getLocalizedMessage(), FAIL, FLOAT_MODE, project.getProjectConfig());
                                               }
                                           });
             }
@@ -264,7 +264,7 @@ public class BranchPresenter implements BranchView.ActionDelegate {
         }).catchError(new Operation<PromiseError>() {
             @Override
             public void apply(PromiseError arg) throws OperationException {
-                notificationManager.notify(arg.getMessage(), FAIL, true, projectToUpdate);
+                notificationManager.notify(arg.getMessage(), FAIL, FLOAT_MODE, projectToUpdate);
             }
         });
     }
@@ -399,7 +399,7 @@ public class BranchPresenter implements BranchView.ActionDelegate {
         GitOutputConsole console = gitOutputConsoleFactory.create(commandName);
         printGitMessage(errorMessage, console);
         consolesPanelPresenter.addCommandOutput(appContext.getDevMachine().getId(), console);
-        notificationManager.notify(errorMessage, FAIL, true, project.getRootProject());
+        notificationManager.notify(errorMessage, FAIL, FLOAT_MODE, project.getRootProject());
     }
 
     private void printGitMessage(String messageText, GitOutputConsole console) {
@@ -409,5 +409,4 @@ public class BranchPresenter implements BranchView.ActionDelegate {
             console.printError(line);
         }
     }
-
 }

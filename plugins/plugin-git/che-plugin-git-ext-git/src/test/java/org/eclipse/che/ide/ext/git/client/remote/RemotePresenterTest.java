@@ -14,8 +14,8 @@ import com.google.gwt.user.client.rpc.AsyncCallback;
 import com.googlecode.gwt.test.utils.GwtReflectionUtils;
 
 import org.eclipse.che.api.git.shared.Remote;
-import org.eclipse.che.api.machine.gwt.client.DevMachine;
-import org.eclipse.che.api.project.gwt.client.ProjectServiceClient;
+import org.eclipse.che.ide.api.machine.DevMachine;
+import org.eclipse.che.ide.api.project.ProjectServiceClient;
 import org.eclipse.che.api.workspace.shared.dto.ProjectConfigDto;
 import org.eclipse.che.ide.api.event.project.ProjectUpdatedEvent;
 import org.eclipse.che.ide.api.notification.StatusNotification;
@@ -34,6 +34,8 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.eclipse.che.ide.api.notification.StatusNotification.DisplayMode.FLOAT_MODE;
+import static org.eclipse.che.ide.ext.git.client.remote.RemotePresenter.REMOTE_REPO_COMMAND_NAME;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
@@ -44,7 +46,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.eclipse.che.ide.ext.git.client.remote.RemotePresenter.REMOTE_REPO_COMMAND_NAME;
 
 /**
  * Testing {@link RemotePresenter} functionality.
@@ -191,7 +192,7 @@ public class RemotePresenterTest extends BaseTest {
         verify(console).printError(anyString());
         verify(consolesPanelPresenter).addCommandOutput(anyString(), eq(console));
         verify(notificationManager, never()).notify(anyString(), eq(rootProjectConfig));
-        verify(notificationManager).notify(anyString(), eq(StatusNotification.Status.FAIL), eq(true), eq(rootProjectConfig));
+        verify(notificationManager).notify(anyString(), eq(StatusNotification.Status.FAIL), eq(FLOAT_MODE), eq(rootProjectConfig));
         verify(constant).remoteAddFailed();
     }
 
@@ -248,7 +249,7 @@ public class RemotePresenterTest extends BaseTest {
         verify(console).printError(anyString());
         verify(consolesPanelPresenter).addCommandOutput(anyString(), eq(console));
         verify(notificationManager, never()).notify(anyString(), eq(rootProjectConfig));
-        verify(notificationManager).notify(anyString(), eq(StatusNotification.Status.FAIL), eq(true), eq(rootProjectConfig));
+        verify(notificationManager).notify(anyString(), eq(StatusNotification.Status.FAIL), eq(FLOAT_MODE), eq(rootProjectConfig));
     }
 
     @Test

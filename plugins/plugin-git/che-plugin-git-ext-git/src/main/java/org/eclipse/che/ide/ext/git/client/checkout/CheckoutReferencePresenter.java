@@ -14,9 +14,9 @@ import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.google.web.bindery.event.shared.EventBus;
 
-import org.eclipse.che.api.git.gwt.client.GitServiceClient;
+import org.eclipse.che.ide.api.git.GitServiceClient;
 import org.eclipse.che.api.git.shared.CheckoutRequest;
-import org.eclipse.che.api.project.gwt.client.ProjectServiceClient;
+import org.eclipse.che.ide.api.project.ProjectServiceClient;
 import org.eclipse.che.api.workspace.shared.dto.ProjectConfigDto;
 import org.eclipse.che.ide.api.app.AppContext;
 import org.eclipse.che.ide.api.editor.EditorAgent;
@@ -24,7 +24,7 @@ import org.eclipse.che.ide.api.editor.EditorPartPresenter;
 import org.eclipse.che.ide.api.event.FileContentUpdateEvent;
 import org.eclipse.che.ide.api.event.project.OpenProjectEvent;
 import org.eclipse.che.ide.api.notification.NotificationManager;
-import org.eclipse.che.ide.api.project.tree.VirtualFile;
+import org.eclipse.che.ide.api.resources.VirtualFile;
 import org.eclipse.che.ide.dto.DtoFactory;
 import org.eclipse.che.ide.ext.git.client.GitLocalizationConstant;
 import org.eclipse.che.ide.ext.git.client.outputconsole.GitOutputConsole;
@@ -36,6 +36,7 @@ import org.eclipse.che.ide.rest.DtoUnmarshallerFactory;
 import org.eclipse.che.ide.rest.Unmarshallable;
 import org.eclipse.che.ide.util.loging.Log;
 
+import static org.eclipse.che.ide.api.notification.StatusNotification.DisplayMode.FLOAT_MODE;
 import static org.eclipse.che.ide.api.notification.StatusNotification.Status.FAIL;
 
 /**
@@ -146,7 +147,7 @@ public class CheckoutReferencePresenter implements CheckoutReferenceView.ActionD
                                  GitOutputConsole console = gitOutputConsoleFactory.create(CHECKOUT_COMMAND_NAME);
                                  console.printError(errorMessage);
                                  consolesPanelPresenter.addCommandOutput(appContext.getDevMachine().getId(), console);
-                                 notificationManager.notify(constant.checkoutFailed(), FAIL, true, project);
+                                 notificationManager.notify(constant.checkoutFailed(), FAIL, FLOAT_MODE, project);
                              }
                          }
                         );

@@ -14,7 +14,7 @@ import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.google.web.bindery.event.shared.EventBus;
 
-import org.eclipse.che.api.project.gwt.client.ProjectServiceClient;
+import org.eclipse.che.ide.api.project.ProjectServiceClient;
 import org.eclipse.che.api.project.shared.Constants;
 import org.eclipse.che.api.workspace.shared.dto.ProjectConfigDto;
 import org.eclipse.che.api.workspace.shared.dto.ProjectProblemDto;
@@ -26,20 +26,21 @@ import org.eclipse.che.ide.api.event.project.DeleteProjectEvent;
 import org.eclipse.che.ide.api.event.project.ProjectUpdatedEvent;
 import org.eclipse.che.ide.api.notification.NotificationManager;
 import org.eclipse.che.ide.api.notification.StatusNotification;
-import org.eclipse.che.ide.api.project.node.Node;
+import org.eclipse.che.ide.api.data.tree.Node;
 import org.eclipse.che.ide.api.wizard.Wizard;
 import org.eclipse.che.ide.project.node.ProjectNode;
 import org.eclipse.che.ide.projectimport.wizard.ProjectImporter;
 import org.eclipse.che.ide.rest.AsyncRequestCallback;
 import org.eclipse.che.ide.rest.DtoUnmarshallerFactory;
-import org.eclipse.che.ide.ui.dialogs.CancelCallback;
-import org.eclipse.che.ide.ui.dialogs.ConfirmCallback;
-import org.eclipse.che.ide.ui.dialogs.DialogFactory;
+import org.eclipse.che.ide.api.dialogs.CancelCallback;
+import org.eclipse.che.ide.api.dialogs.ConfirmCallback;
+import org.eclipse.che.ide.api.dialogs.DialogFactory;
 import org.eclipse.che.ide.ui.smartTree.event.BeforeExpandNodeEvent;
 import org.eclipse.che.ide.util.loging.Log;
 
 import java.util.List;
 
+import static org.eclipse.che.ide.api.notification.StatusNotification.DisplayMode.FLOAT_MODE;
 import static org.eclipse.che.ide.api.notification.StatusNotification.Status.FAIL;
 
 /**
@@ -248,14 +249,14 @@ public class ProjectConfigSynchronizationListener implements BeforeExpandNodeEve
             protected void onSuccess(Void result) {
                 eventBus.fireEvent(new DeleteProjectEvent(projectConfig));
 
-                notificationManager.notify(locale.projectRemoved(projectConfig.getName()), StatusNotification.Status.SUCCESS, true);
+                notificationManager.notify(locale.projectRemoved(projectConfig.getName()), StatusNotification.Status.SUCCESS, FLOAT_MODE);
             }
 
             @Override
             protected void onFailure(Throwable exception) {
                 Log.error(getClass(), exception);
 
-                notificationManager.notify(locale.projectRemoveError(projectConfig.getName()), FAIL, true);
+                notificationManager.notify(locale.projectRemoveError(projectConfig.getName()), FAIL, FLOAT_MODE);
             }
         });
     }
@@ -274,7 +275,7 @@ public class ProjectConfigSynchronizationListener implements BeforeExpandNodeEve
                                          protected void onFailure(Throwable exception) {
                                              Log.error(getClass(), exception);
 
-                                             notificationManager.notify(locale.projectUpdateError(projectConfig.getName()), FAIL, true);
+                                             notificationManager.notify(locale.projectUpdateError(projectConfig.getName()), FAIL, FLOAT_MODE);
                                          }
                                      });
     }

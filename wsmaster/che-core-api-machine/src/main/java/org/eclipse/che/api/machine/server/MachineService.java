@@ -16,7 +16,6 @@ import io.swagger.annotations.ApiParam;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 
-import com.google.common.collect.Lists;
 import com.google.common.io.CharStreams;
 
 import org.eclipse.che.api.core.BadRequestException;
@@ -25,29 +24,22 @@ import org.eclipse.che.api.core.NotFoundException;
 import org.eclipse.che.api.core.ServerException;
 import org.eclipse.che.api.core.model.machine.Machine;
 import org.eclipse.che.api.core.rest.Service;
-import org.eclipse.che.api.core.rest.ServiceContext;
-import org.eclipse.che.api.core.rest.shared.dto.Link;
-import org.eclipse.che.api.core.rest.shared.dto.LinkParameter;
 import org.eclipse.che.api.machine.server.exception.MachineException;
 import org.eclipse.che.api.machine.server.model.impl.SnapshotImpl;
 import org.eclipse.che.api.machine.server.spi.Instance;
-import org.eclipse.che.api.machine.shared.Constants;
 import org.eclipse.che.api.machine.shared.dto.CommandDto;
-import org.eclipse.che.api.machine.shared.dto.MachineConfigDto;
 import org.eclipse.che.api.machine.shared.dto.MachineDto;
 import org.eclipse.che.api.machine.shared.dto.MachineProcessDto;
 import org.eclipse.che.api.machine.shared.dto.NewSnapshotDescriptor;
 import org.eclipse.che.api.machine.shared.dto.SnapshotDto;
 import org.eclipse.che.commons.env.EnvironmentContext;
 
-import javax.annotation.security.RolesAllowed;
 import javax.inject.Inject;
 import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
-import javax.ws.rs.HttpMethod;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
@@ -55,21 +47,10 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.UriBuilder;
 import java.io.IOException;
 import java.io.Reader;
-import java.net.URI;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
-
-import static java.util.Arrays.asList;
-import static java.util.Collections.singletonList;
-import static javax.ws.rs.core.MediaType.APPLICATION_JSON;
-import static javax.ws.rs.core.MediaType.TEXT_PLAIN;
-import static org.eclipse.che.api.core.util.LinksHelper.createLink;
-import static org.eclipse.che.dto.server.DtoFactory.cloneDto;
-import static org.eclipse.che.dto.server.DtoFactory.newDto;
 
 /**
  * Machine API
@@ -82,15 +63,17 @@ import static org.eclipse.che.dto.server.DtoFactory.newDto;
 public class MachineService extends Service {
     private MachineManager machineManager;
 
+    private final MachineServiceLinksInjector linksInjector;
+
     @Inject
-    public MachineService(MachineManager machineManager) {
+    public MachineService(MachineManager machineManager, MachineServiceLinksInjector linksInjector) {
         this.machineManager = machineManager;
+        this.linksInjector = linksInjector;
     }
 
     @GET
     @Path("/{machineId}")
     @Produces(MediaType.APPLICATION_JSON)
-    @RolesAllowed("user")
     @ApiOperation(value = "Get machine by ID")
     @ApiResponses({@ApiResponse(code = 200, message = "The response contains requested machine entity"),
                    @ApiResponse(code = 404, message = "Machine with specified id does not exist"),
@@ -103,15 +86,11 @@ public class MachineService extends Service {
                    NotFoundException {
 
         final Machine machine = machineManager.getMachine(machineId);
-
-        checkCurrentUserPermissions(machine);
-
-        return injectLinks(DtoConverter.asDto(machine));
+        return linksInjector.injectLinks(DtoConverter.asDto(machine), getServiceContext());
     }
 
     @GET
     @Produces(MediaType.APPLICATION_JSON)
-    @RolesAllowed("user")
     @ApiOperation(value = "Get all machines of workspace with specified ID",
                   response = MachineDto.class,
                   responseContainer = "List")
@@ -126,19 +105,16 @@ public class MachineService extends Service {
 
         requiredNotNull(workspaceId, "Parameter workspace");
 
-        final String userId = EnvironmentContext.getCurrent().getUser().getId();
-
-        return machineManager.getMachines(userId, workspaceId)
+        return machineManager.getMachines(workspaceId)
                              .stream()
                              .map(DtoConverter::asDto)
-                             .map(this::injectLinks)
+                             .map(machineDto -> linksInjector.injectLinks(machineDto, getServiceContext()))
                              .collect(Collectors.toList());
     }
 
     @DELETE
     @Path("/{machineId}")
     @Produces(MediaType.APPLICATION_JSON)
-    @RolesAllowed("user")
     @ApiOperation(value = "Destroy machine")
     @ApiResponses({@ApiResponse(code = 204, message = "Machine was successfully destroyed"),
                    @ApiResponse(code = 404, message = "Machine with specified id does not exist"),
@@ -150,15 +126,12 @@ public class MachineService extends Service {
                    ServerException,
                    ForbiddenException {
 
-        checkCurrentUserPermissions(machineManager.getMachine(machineId));
-
         machineManager.destroy(machineId, true);
     }
 
     @GET
     @Path("/snapshot")
     @Produces(MediaType.APPLICATION_JSON)
-    @RolesAllowed("user")
     @ApiOperation(value = "Get all snapshots of machines in workspace",
                   response = SnapshotDto.class,
                   responseContainer = "List")
@@ -173,11 +146,11 @@ public class MachineService extends Service {
 
         requiredNotNull(workspaceId, "Parameter workspace");
 
-        final List<SnapshotImpl> snapshots = machineManager.getSnapshots(EnvironmentContext.getCurrent().getUser().getId(), workspaceId);
+        final List<SnapshotImpl> snapshots = machineManager.getSnapshots(EnvironmentContext.getCurrent().getSubject().getUserId(), workspaceId);
 
         return snapshots.stream()
                         .map(DtoConverter::asDto)
-                        .map(this::injectLinks)
+                        .map(snapshotDto -> linksInjector.injectLinks(snapshotDto, getServiceContext()))
                         .collect(Collectors.toList());
     }
 
@@ -185,7 +158,6 @@ public class MachineService extends Service {
     @Path("/{machineId}/snapshot")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    @RolesAllowed("user")
     @ApiOperation(value = "Save snapshot of machine")
     @ApiResponses({@ApiResponse(code = 200, message = "The response contains requested snapshot entity"),
                    @ApiResponse(code = 400, message = "Snapshot description is not specified"),
@@ -202,16 +174,16 @@ public class MachineService extends Service {
                    BadRequestException {
 
         requiredNotNull(newSnapshotDescriptor, "Snapshot description");
-        checkCurrentUserPermissions(machineManager.getMachine(machineId));
-
-        return injectLinks(DtoConverter.asDto(machineManager.save(machineId,
-                                                                  EnvironmentContext.getCurrent().getUser().getId(),
-                                                                  newSnapshotDescriptor.getDescription())));
+        return linksInjector.injectLinks(DtoConverter.asDto(machineManager.save(machineId,
+                                                                                EnvironmentContext.getCurrent()
+                                                                                                  .getSubject()
+                                                                                                  .getUserId(),
+                                                                                newSnapshotDescriptor.getDescription())),
+                                         getServiceContext());
     }
 
     @DELETE
     @Path("/snapshot/{snapshotId}")
-    @RolesAllowed("user")
     @ApiOperation(value = "Remove snapshot of machine")
     @ApiResponses({@ApiResponse(code = 204, message = "Snapshot was successfully removed"),
                    @ApiResponse(code = 404, message = "Snapshot with specified ID does not exist"),
@@ -223,15 +195,12 @@ public class MachineService extends Service {
                    NotFoundException,
                    ServerException {
 
-        checkCurrentUserPermissions(machineManager.getSnapshot(snapshotId));
-
         machineManager.removeSnapshot(snapshotId);
     }
 
     @POST
     @Path("/{machineId}/command")
     @Consumes(MediaType.APPLICATION_JSON)
-    @RolesAllowed("user")
     @ApiOperation(value = "Start specified command in machine")
     @ApiResponses({@ApiResponse(code = 200, message = "The response contains entity of created machine process"),
                    @ApiResponse(code = 400, message = "Command entity is invalid"),
@@ -252,15 +221,14 @@ public class MachineService extends Service {
 
         requiredNotNull(command, "Command description");
         requiredNotNull(command.getCommandLine(), "Commandline");
-        checkCurrentUserPermissions(machineManager.getMachine(machineId));
-
-        return injectLinks(DtoConverter.asDto(machineManager.exec(machineId, command, outputChannel)), machineId);
+        return linksInjector.injectLinks(DtoConverter.asDto(machineManager.exec(machineId, command, outputChannel)),
+                                         machineId,
+                                         getServiceContext());
     }
 
     @GET
     @Path("/{machineId}/process")
     @Produces(MediaType.APPLICATION_JSON)
-    @RolesAllowed("user")
     @ApiOperation(value = "Get processes of machine",
                   response = MachineProcessDto.class,
                   responseContainer = "List")
@@ -274,18 +242,17 @@ public class MachineService extends Service {
                    ServerException,
                    ForbiddenException {
 
-        checkCurrentUserPermissions(machineManager.getMachine(machineId));
-
         return machineManager.getProcesses(machineId)
                              .stream()
                              .map(DtoConverter::asDto)
-                             .map(machineProcess -> injectLinks(machineProcess, machineId))
+                             .map(machineProcess -> linksInjector.injectLinks(machineProcess,
+                                                                              machineId,
+                                                                              getServiceContext()))
                              .collect(Collectors.toList());
     }
 
     @DELETE
     @Path("/{machineId}/process/{processId}")
-    @RolesAllowed("user")
     @ApiOperation(value = "Stop process in machine")
     @ApiResponses({@ApiResponse(code = 204, message = "Process was successfully stopped"),
                    @ApiResponse(code = 404, message = "Machine with specified ID does not exist"),
@@ -300,15 +267,12 @@ public class MachineService extends Service {
                    ForbiddenException,
                    ServerException {
 
-        checkCurrentUserPermissions(machineManager.getMachine(machineId));
-
         machineManager.stopProcess(machineId, processId);
     }
 
     @GET
     @Path("/{machineId}/logs")
     @Produces(MediaType.TEXT_PLAIN)
-    @RolesAllowed("user")
     @ApiOperation(value = "Get logs of machine")
     @ApiResponses({@ApiResponse(code = 200, message = "The response contains logs"),
                    @ApiResponse(code = 404, message = "Machine with specified ID does not exist"),
@@ -323,15 +287,12 @@ public class MachineService extends Service {
                    ServerException,
                    IOException {
 
-        checkCurrentUserPermissions(machineManager.getMachine(machineId));
-
         addLogsToResponse(machineManager.getMachineLogReader(machineId), httpServletResponse);
     }
 
     @GET
     @Path("/{machineId}/process/{pid}/logs")
     @Produces(MediaType.TEXT_PLAIN)
-    @RolesAllowed("user")
     @ApiOperation(value = "Get logs of machine process")
     @ApiResponses({@ApiResponse(code = 200, message = "The response contains logs"),
                    @ApiResponse(code = 404, message = "Machine or process with specified ID does not exist"),
@@ -348,8 +309,6 @@ public class MachineService extends Service {
                    ForbiddenException,
                    ServerException,
                    IOException {
-
-        checkCurrentUserPermissions(machineManager.getMachine(machineId));
 
         addLogsToResponse(machineManager.getProcessLogReader(machineId, pid), httpServletResponse);
     }
@@ -370,7 +329,6 @@ public class MachineService extends Service {
     @GET
     @Path("/{machineId}/filepath/{path:.*}")
     @Produces(MediaType.TEXT_PLAIN)
-    @RolesAllowed("user")
     @ApiOperation(value = "Get content of file in machine")
     @ApiResponses({@ApiResponse(code = 200, message = "The response contains file content"),
                    @ApiResponse(code = 404, message = "Machine with specified ID does not exist"),
@@ -394,9 +352,6 @@ public class MachineService extends Service {
                    ServerException {
 
         final Instance machine = machineManager.getInstance(machineId);
-
-        checkCurrentUserPermissions(machine);
-
         return machine.readFileContent(path, startFrom, limit);
     }
 
@@ -421,7 +376,6 @@ public class MachineService extends Service {
      */
     @POST
     @Path("/copy")
-    @RolesAllowed("user")
     @ApiOperation(value = "Copy files from one machine to another")
     @ApiResponses({@ApiResponse(code = 200, message = "Files were copied successfully"),
                    @ApiResponse(code = 400, message = "Machine ID or path is not specified"),
@@ -456,163 +410,7 @@ public class MachineService extends Service {
 
         final Instance sourceMachine = machineManager.getInstance(sourceMachineId);
         final Instance targetMachine = machineManager.getInstance(targetMachineId);
-
-        checkCurrentUserPermissions(sourceMachine);
-        checkCurrentUserPermissions(targetMachine);
-
         targetMachine.copy(sourceMachine, sourcePath, targetPath, overwrite);
-    }
-
-    private MachineDto injectLinks(MachineDto machine) {
-        return injectLinks(machine, getServiceContext());
-    }
-
-    public static MachineDto injectLinks(MachineDto machine, ServiceContext serviceContext) {
-        final UriBuilder uriBuilder = serviceContext.getServiceUriBuilder();
-        final List<Link> links = new ArrayList<>();
-
-        links.add(createLink(HttpMethod.GET,
-                             uriBuilder.clone()
-                                       .path(MachineService.class, "getMachineById")
-                                       .build(machine.getId())
-                                       .toString(),
-                             APPLICATION_JSON,
-                             "self link"));
-        links.add(createLink(HttpMethod.GET,
-                             uriBuilder.clone()
-                                       .path(MachineService.class, "getMachines")
-                                       .build()
-                                       .toString(),
-                             null,
-                             APPLICATION_JSON,
-                             Constants.LINK_REL_GET_MACHINES,
-                             newDto(LinkParameter.class).withName("workspace")
-                                                        .withRequired(true)
-                                                        .withDefaultValue(machine.getWorkspaceId())));
-        links.add(createLink(HttpMethod.DELETE,
-                             uriBuilder.clone()
-                                       .path(MachineService.class, "destroyMachine")
-                                       .build(machine.getId())
-                                       .toString(),
-                             Constants.LINK_REL_DESTROY_MACHINE));
-        links.add(createLink(HttpMethod.GET,
-                             uriBuilder.clone()
-                                       .path(MachineService.class, "getSnapshots")
-                                       .build()
-                                       .toString(),
-                             null,
-                             APPLICATION_JSON,
-                             Constants.LINK_REL_GET_SNAPSHOTS,
-                             newDto(LinkParameter.class).withName("workspace")
-                                                        .withRequired(true)
-                                                        .withDefaultValue(machine.getWorkspaceId())));
-        links.add(createLink(HttpMethod.POST,
-                             uriBuilder.clone()
-                                       .path(MachineService.class, "saveSnapshot")
-                                       .build(machine.getId())
-                                       .toString(),
-                             APPLICATION_JSON,
-                             APPLICATION_JSON,
-                             Constants.LINK_REL_SAVE_SNAPSHOT));
-        links.add(createLink(HttpMethod.POST,
-                             uriBuilder.clone()
-                                       .path(MachineService.class, "executeCommandInMachine")
-                                       .build(machine.getId())
-                                       .toString(),
-                             APPLICATION_JSON,
-                             APPLICATION_JSON,
-                             Constants.LINK_REL_EXECUTE_COMMAND,
-                             newDto(LinkParameter.class).withName("outputChannel")
-                                                        .withRequired(false)));
-        links.add(createLink(HttpMethod.GET,
-                             uriBuilder.clone()
-                                       .path(MachineService.class, "getProcesses")
-                                       .build(machine.getId())
-                                       .toString(),
-                             APPLICATION_JSON,
-                             Constants.LINK_REL_GET_PROCESSES));
-        final URI getLogsUri = uriBuilder.clone()
-                                         .path(MachineService.class, "getMachineLogs")
-                                         .build(machine.getId());
-        links.add(createLink(HttpMethod.GET, getLogsUri.toString(), TEXT_PLAIN, Constants.LINK_REL_GET_MACHINE_LOGS));
-
-        // add links to websocket channels
-        final Link machineChannelLink = createLink("GET",
-                                                   serviceContext.getBaseUriBuilder()
-                                                                 .path("ws")
-                                                                 .path(machine.getWorkspaceId())
-                                                                 .scheme("https".equals(getLogsUri.getScheme()) ? "wss" : "ws")
-                                                                 .build()
-                                                                 .toString(),
-                                                   null);
-        final LinkParameter channelParameter = newDto(LinkParameter.class).withName("channel")
-                                                                          .withRequired(true);
-
-        injectMachineChannelsLinks(machine.getConfig(),
-                                   machine.getWorkspaceId(),
-                                   machine.getEnvName(),
-                                   machineChannelLink,
-                                   channelParameter);
-
-        return machine.withLinks(links);
-    }
-
-    public static void injectMachineChannelsLinks(MachineConfigDto machineConfig,
-                                                  String workspaceId,
-                                                  String envName,
-                                                  Link machineChannelLink,
-                                                  LinkParameter channelParameter) {
-        final ChannelsImpl channels = MachineManager.getMachineChannels(machineConfig.getName(),
-                                                                        workspaceId,
-                                                                        envName);
-        final Link getLogsLink = cloneDto(machineChannelLink)
-                .withRel(org.eclipse.che.api.machine.shared.Constants.LINK_REL_GET_MACHINE_LOGS_CHANNEL)
-                .withParameters(singletonList(cloneDto(channelParameter).withDefaultValue(channels.getOutput())));
-
-        final Link getStatusLink = cloneDto(machineChannelLink)
-                .withRel(org.eclipse.che.api.machine.shared.Constants.LINK_REL_GET_MACHINE_STATUS_CHANNEL)
-                .withParameters(singletonList(cloneDto(channelParameter).withDefaultValue(channels.getStatus())));
-
-        machineConfig.withLinks(asList(getLogsLink, getStatusLink));
-    }
-
-    private MachineProcessDto injectLinks(MachineProcessDto process, String machineId) {
-        final UriBuilder uriBuilder = getServiceContext().getServiceUriBuilder();
-        final List<Link> links = Lists.newArrayListWithExpectedSize(3);
-
-        links.add(createLink(HttpMethod.DELETE,
-                             uriBuilder.clone()
-                                       .path(getClass(), "stopProcess")
-                                       .build(machineId, process.getPid())
-                                       .toString(),
-                             Constants.LINK_REL_STOP_PROCESS));
-        links.add(createLink(HttpMethod.GET,
-                             uriBuilder.clone()
-                                       .path(getClass(), "getProcessLogs")
-                                       .build(machineId, process.getPid())
-                                       .toString(),
-                             TEXT_PLAIN,
-                             Constants.LINK_REL_GET_PROCESS_LOGS));
-        links.add(createLink(HttpMethod.GET,
-                             uriBuilder.clone()
-                                       .path(getClass(), "getProcesses")
-                                       .build(machineId)
-                                       .toString(),
-                             APPLICATION_JSON,
-                             Constants.LINK_REL_GET_PROCESSES));
-
-        return process.withLinks(links);
-    }
-
-    private SnapshotDto injectLinks(SnapshotDto snapshot) {
-        final UriBuilder uriBuilder = getServiceContext().getServiceUriBuilder();
-
-        return snapshot.withLinks(singletonList(createLink(HttpMethod.DELETE,
-                                                           uriBuilder.clone()
-                                                                     .path(getClass(), "removeSnapshot")
-                                                                     .build(snapshot.getId())
-                                                                     .toString(),
-                                                           Constants.LINK_REL_REMOVE_SNAPSHOT)));
     }
 
     private void addLogsToResponse(Reader logsReader, HttpServletResponse httpServletResponse) throws IOException {
@@ -620,26 +418,6 @@ public class MachineService extends Service {
         httpServletResponse.setContentType("text/plain");
         CharStreams.copy(logsReader, httpServletResponse.getWriter());
         httpServletResponse.getWriter().flush();
-    }
-
-    private void checkCurrentUserPermissions(SnapshotImpl snapshot) throws ForbiddenException, ServerException {
-        checkCurrentUserPermissions(snapshot.getWorkspaceId());
-    }
-
-    private void checkCurrentUserPermissions(Machine machine) throws ForbiddenException, ServerException {
-        checkCurrentUserPermissions(machine.getWorkspaceId());
-    }
-
-    private void checkCurrentUserPermissions(String workspaceId) throws ForbiddenException, ServerException {
-        // TODO
-//        try {
-//            final Member member = memberDao.getWorkspaceMember(workspaceId, EnvironmentContext.getCurrent().getUser().getId());
-//            if (member.getRoles().contains("workspace/admin") || member.getRoles().contains("workspace/developer")) {
-//                return;
-//            }
-//        } catch (NotFoundException ignored) {
-//        }
-//        throw new ForbiddenException("You are not a member of workspace " + workspaceId);
     }
 
     /**

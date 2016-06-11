@@ -24,10 +24,10 @@ import org.eclipse.che.ide.api.app.AppContext;
 import org.eclipse.che.ide.api.editor.EditorAgent;
 import org.eclipse.che.ide.api.editor.EditorPartPresenter;
 import org.eclipse.che.ide.api.editor.OpenEditorCallbackImpl;
-import org.eclipse.che.ide.api.project.node.HasAction;
+import org.eclipse.che.ide.api.data.tree.HasAction;
 import org.eclipse.che.ide.api.project.node.HasStorablePath;
-import org.eclipse.che.ide.api.project.node.Node;
-import org.eclipse.che.ide.api.project.tree.VirtualFile;
+import org.eclipse.che.ide.api.data.tree.Node;
+import org.eclipse.che.ide.api.resources.VirtualFile;
 import org.eclipse.che.ide.dto.DtoFactory;
 import org.eclipse.che.ide.ext.java.client.JavaResources;
 import org.eclipse.che.ide.ext.java.client.project.node.JavaNodeManager;
@@ -37,8 +37,8 @@ import org.eclipse.che.ide.ext.java.shared.dto.Region;
 import org.eclipse.che.ide.ext.java.shared.dto.model.ClassFile;
 import org.eclipse.che.ide.ext.java.shared.dto.model.CompilationUnit;
 import org.eclipse.che.ide.ext.java.shared.dto.search.Match;
-import org.eclipse.che.ide.jseditor.client.text.LinearRange;
-import org.eclipse.che.ide.jseditor.client.texteditor.EmbeddedTextEditorPresenter;
+import org.eclipse.che.ide.api.editor.text.LinearRange;
+import org.eclipse.che.ide.api.editor.texteditor.TextEditorPresenter;
 import org.eclipse.che.ide.part.explorer.project.ProjectExplorerPresenter;
 import org.eclipse.che.ide.project.node.FileReferenceNode;
 import org.eclipse.che.ide.resource.Path;
@@ -201,8 +201,8 @@ public class MatchNode extends AbstractPresentationNode implements HasAction {
     }
 
     private void fileOpened(EditorPartPresenter editor) {
-        if (editor instanceof EmbeddedTextEditorPresenter) {
-            ((EmbeddedTextEditorPresenter)editor).getDocument().setSelectedRange(
+        if (editor instanceof TextEditorPresenter) {
+            ((TextEditorPresenter)editor).getDocument().setSelectedRange(
                     LinearRange.createWithStart(match.getFileMatchRegion().getOffset()).andLength(match.getFileMatchRegion().getLength()),
                     true);
         }

@@ -10,6 +10,8 @@
  *******************************************************************************/
 package org.eclipse.che.api.workspace.server;
 
+import com.google.common.base.Joiner;
+
 import org.eclipse.che.api.core.BadRequestException;
 import org.eclipse.che.api.core.model.machine.Command;
 import org.eclipse.che.api.core.model.machine.MachineConfig;
@@ -17,7 +19,9 @@ import org.eclipse.che.api.core.model.machine.ServerConf;
 import org.eclipse.che.api.core.model.workspace.Environment;
 import org.eclipse.che.api.core.model.workspace.Workspace;
 import org.eclipse.che.api.core.model.workspace.WorkspaceConfig;
+import org.eclipse.che.api.machine.server.MachineInstanceProviders;
 
+import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -36,6 +40,13 @@ public class DefaultWorkspaceValidator implements WorkspaceValidator {
     private static final Pattern WS_NAME         = Pattern.compile("[a-zA-Z0-9][-_.a-zA-Z0-9]{1,18}[a-zA-Z0-9]");
     private static final Pattern SERVER_PORT     = Pattern.compile("[1-9]+[0-9]*/(?:tcp|udp)");
     private static final Pattern SERVER_PROTOCOL = Pattern.compile("[a-z][a-z0-9-+.]*");
+    
+    private final MachineInstanceProviders machineInstanceProviders;
+    
+    @Inject
+    public DefaultWorkspaceValidator(MachineInstanceProviders machineInstanceProviders) {
+    	this.machineInstanceProviders = machineInstanceProviders;
+    }
 
     @Override
     public void validateWorkspace(Workspace workspace) throws BadRequestException {
@@ -112,10 +123,15 @@ public class DefaultWorkspaceValidator implements WorkspaceValidator {
     private void validateMachine(MachineConfig machineCfg, String envName) throws BadRequestException {
         checkArgument(!isNullOrEmpty(machineCfg.getName()), "Environment %s contains machine with null or empty name", envName);
         checkNotNull(machineCfg.getSource(), "Environment " + envName + " contains machine without source");
-        checkArgument("docker".equals(machineCfg.getType()),
-                      "Type of machine %s in environment %s is not supported. Supported value is 'docker'.",
+        checkArgument(!(machineCfg.getSource().getContent() == null && machineCfg.getSource().getLocation() == null),
+                      "Environment " + envName + " contains machine with source but this source doesn't define a location or content");
+
+        checkArgument(machineInstanceProviders.hasProvider(machineCfg.getType()),
+                      "Type %s of machine %s in environment %s is not supported. Supported values: %s.",
+                      machineCfg.getType(),
                       machineCfg.getName(),
-                      envName);
+                      envName,
+                      Joiner.on(", ").join(machineInstanceProviders.getProviderTypes()));
 
         for (ServerConf serverConf : machineCfg.getServers()) {
             checkArgument(serverConf.getPort() != null && SERVER_PORT.matcher(serverConf.getPort()).matches(),

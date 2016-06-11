@@ -21,7 +21,7 @@ import org.eclipse.che.ide.api.editor.EditorAgent;
 import org.eclipse.che.ide.api.editor.EditorInput;
 import org.eclipse.che.ide.api.notification.NotificationManager;
 import org.eclipse.che.ide.api.project.node.HasProjectConfig;
-import org.eclipse.che.ide.api.project.tree.VirtualFile;
+import org.eclipse.che.ide.api.resources.VirtualFile;
 import org.eclipse.che.ide.dto.DtoFactory;
 import org.eclipse.che.ide.ext.java.client.JavaLocalizationConstant;
 import org.eclipse.che.ide.ext.java.client.JavaResources;
@@ -29,10 +29,10 @@ import org.eclipse.che.ide.ext.java.client.navigation.service.JavaNavigationServ
 import org.eclipse.che.ide.ext.java.client.project.node.JavaNodeManager;
 import org.eclipse.che.ide.ext.java.shared.dto.ImplementationsDescriptorDTO;
 import org.eclipse.che.ide.ext.java.shared.dto.model.Type;
-import org.eclipse.che.ide.jseditor.client.document.Document;
-import org.eclipse.che.ide.jseditor.client.popup.PopupResources;
-import org.eclipse.che.ide.jseditor.client.position.PositionConverter;
-import org.eclipse.che.ide.jseditor.client.texteditor.EmbeddedTextEditorPresenter;
+import org.eclipse.che.ide.api.editor.document.Document;
+import org.eclipse.che.ide.ui.popup.PopupResources;
+import org.eclipse.che.ide.api.editor.position.PositionConverter;
+import org.eclipse.che.ide.api.editor.texteditor.TextEditorPresenter;
 import org.eclipse.che.ide.part.explorer.project.ProjectExplorerPresenter;
 import org.junit.Before;
 import org.junit.Test;
@@ -82,7 +82,7 @@ public class OpenImplementationPresenterTest {
     private JavaLocalizationConstant locale;
 
     @Mock
-    private EmbeddedTextEditorPresenter           editorPartPresenter;
+    private TextEditorPresenter                   editorPartPresenter;
     @Mock
     private EditorInput                           editorInput;
     @Mock

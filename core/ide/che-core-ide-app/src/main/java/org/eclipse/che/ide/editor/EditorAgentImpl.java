@@ -15,9 +15,9 @@ import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.google.web.bindery.event.shared.EventBus;
 
-import org.eclipse.che.api.machine.gwt.client.events.WsAgentStateEvent;
-import org.eclipse.che.api.machine.gwt.client.events.WsAgentStateHandler;
-import org.eclipse.che.api.project.gwt.client.ProjectServiceClient;
+import org.eclipse.che.ide.api.machine.events.WsAgentStateEvent;
+import org.eclipse.che.ide.api.machine.events.WsAgentStateHandler;
+import org.eclipse.che.ide.api.project.ProjectServiceClient;
 import org.eclipse.che.api.project.shared.dto.ItemReference;
 import org.eclipse.che.api.workspace.shared.dto.ProjectConfigDto;
 import org.eclipse.che.commons.annotation.Nullable;
@@ -30,9 +30,9 @@ import org.eclipse.che.ide.api.editor.EditorPartPresenter;
 import org.eclipse.che.ide.api.editor.EditorPartPresenter.EditorPartCloseHandler;
 import org.eclipse.che.ide.api.editor.EditorProvider;
 import org.eclipse.che.ide.api.editor.EditorRegistry;
+import org.eclipse.che.ide.api.editor.OpenEditorCallbackImpl;
 import org.eclipse.che.ide.api.event.ActivePartChangedEvent;
 import org.eclipse.che.ide.api.event.ActivePartChangedHandler;
-import org.eclipse.che.ide.api.event.FileContentUpdateEvent;
 import org.eclipse.che.ide.api.event.FileEvent;
 import org.eclipse.che.ide.api.event.FileEvent.FileOperation;
 import org.eclipse.che.ide.api.event.FileEventHandler;
@@ -48,14 +48,13 @@ import org.eclipse.che.ide.api.parts.PartPresenter;
 import org.eclipse.che.ide.api.parts.PropertyListener;
 import org.eclipse.che.ide.api.parts.WorkspaceAgent;
 import org.eclipse.che.ide.api.project.node.HasStorablePath;
-import org.eclipse.che.ide.api.project.tree.VirtualFile;
-import org.eclipse.che.ide.api.texteditor.HasReadOnlyProperty;
+import org.eclipse.che.ide.api.resources.VirtualFile;
+import org.eclipse.che.ide.api.editor.texteditor.HasReadOnlyProperty;
 import org.eclipse.che.ide.project.event.ResourceNodeDeletedEvent;
 import org.eclipse.che.ide.project.event.ResourceNodeRenamedEvent;
 import org.eclipse.che.ide.project.node.FileReferenceNode;
 import org.eclipse.che.ide.project.node.FolderReferenceNode;
 import org.eclipse.che.ide.project.node.ItemReferenceBasedNode;
-import org.eclipse.che.ide.project.node.ModuleNode;
 import org.eclipse.che.ide.project.node.NodeManager;
 import org.eclipse.che.ide.project.node.ResourceBasedNode;
 import org.eclipse.che.ide.resource.Path;
@@ -70,6 +69,7 @@ import java.util.LinkedList;
 import java.util.List;
 
 import static org.eclipse.che.ide.api.event.FileEvent.FileOperation.CLOSE;
+import static org.eclipse.che.ide.api.notification.StatusNotification.DisplayMode.FLOAT_MODE;
 import static org.eclipse.che.ide.api.parts.PartStackType.EDITING;
 
 /** @author Evgen Vidolob */
@@ -178,23 +178,6 @@ public class EditorAgentImpl implements EditorAgent {
                             eventBus.fireEvent(new FileEvent(editor.getEditorInput().getFile(), CLOSE));
                         }
                     }
-                } else if (node instanceof ModuleNode) {
-                    for (EditorPartPresenter editor : openedEditors) {
-                        VirtualFile virtualFile = editor.getEditorInput().getFile();
-                        if (moduleHasFile(node.getProjectConfig(), virtualFile)) {
-                            eventBus.fireEvent(new FileEvent(virtualFile, CLOSE));
-                        }
-                        if (node.getParent() == null || !(node.getParent() instanceof HasStorablePath)) {
-                            return;
-                        }
-
-                        String parentPath = ((HasStorablePath)node.getParent()).getStorablePath();
-                        String openFileName = virtualFile.getName();
-                        String openFilePath = virtualFile.getPath();
-                        if (openFilePath.contains(parentPath) && openFileName.equals("modules")) {
-                            eventBus.fireEvent(new FileContentUpdateEvent(openFilePath));
-                        }
-                    }
                 }
             }
         });
@@ -215,15 +198,10 @@ public class EditorAgentImpl implements EditorAgent {
             public void onResourceRenamedEvent(ResourceNodeRenamedEvent event) {
                 ResourceBasedNode<?> resourceBaseNode = event.getNode();
 
-                if (resourceBaseNode instanceof FolderReferenceNode || resourceBaseNode instanceof ModuleNode) {
+                if (resourceBaseNode instanceof FolderReferenceNode) {
                     HasStorablePath renamedTargetStoragePath = ((HasStorablePath)resourceBaseNode);
                     final String oldTargetPath = renamedTargetStoragePath.getStorablePath();
-                    final String newTargetPath;
-                    if (resourceBaseNode instanceof FolderReferenceNode) {
-                        newTargetPath = ((ItemReference)event.getNewDataObject()).getPath();
-                    } else {
-                        newTargetPath = ((ProjectConfigDto)event.getNewDataObject()).getPath();
-                    }
+                    final String newTargetPath = ((ItemReference)event.getNewDataObject()).getPath();
                     final Unmarshallable<ItemReference> unmarshaller = unmarshallerFactory.newUnmarshaller(ItemReference.class);
                     updateEditorPartsAfterRename(new LinkedList<>(openedEditors),
                                                  oldTargetPath,
@@ -306,7 +284,7 @@ public class EditorAgentImpl implements EditorAgent {
     /** {@inheritDoc} */
     @Override
     public void openEditor(@NotNull final VirtualFile file) {
-        doOpen(file, null);
+        doOpen(file, new OpenEditorCallbackImpl());
     }
 
     /** {@inheritDoc} */
@@ -430,7 +408,7 @@ public class EditorAgentImpl implements EditorAgent {
             @Override
             public void onFailure(Throwable caught) {
                 callback.onFailure(caught);
-                notificationManager.notify(coreLocalizationConstant.someFilesCanNotBeSaved(), StatusNotification.Status.FAIL, true);
+                notificationManager.notify(coreLocalizationConstant.someFilesCanNotBeSaved(), StatusNotification.Status.FAIL, FLOAT_MODE);
             }
 
             @Override

@@ -23,14 +23,14 @@ import org.eclipse.che.ide.api.editor.EditorAgent;
 import org.eclipse.che.ide.api.editor.EditorPartPresenter;
 import org.eclipse.che.ide.api.editor.OpenEditorCallbackImpl;
 import org.eclipse.che.ide.api.project.node.HasStorablePath;
-import org.eclipse.che.ide.api.project.node.Node;
-import org.eclipse.che.ide.api.project.tree.VirtualFile;
+import org.eclipse.che.ide.api.data.tree.Node;
+import org.eclipse.che.ide.api.resources.VirtualFile;
 import org.eclipse.che.ide.ext.java.client.navigation.service.JavaNavigationService;
 import org.eclipse.che.ide.ext.java.client.project.node.JavaNodeManager;
 import org.eclipse.che.ide.ext.java.client.projecttree.JavaSourceFolderUtil;
 import org.eclipse.che.ide.ext.java.shared.OpenDeclarationDescriptor;
-import org.eclipse.che.ide.jseditor.client.text.LinearRange;
-import org.eclipse.che.ide.jseditor.client.texteditor.EmbeddedTextEditorPresenter;
+import org.eclipse.che.ide.api.editor.text.LinearRange;
+import org.eclipse.che.ide.api.editor.texteditor.TextEditorPresenter;
 import org.eclipse.che.ide.part.explorer.project.ProjectExplorerPresenter;
 import org.eclipse.che.ide.project.node.FileReferenceNode;
 import org.eclipse.che.ide.resource.Path;
@@ -73,11 +73,11 @@ public class OpenDeclarationFinder {
             return;
         }
 
-        if (!(activeEditor instanceof EmbeddedTextEditorPresenter)) {
-            Log.error(getClass(), "Open Declaration support only EmbeddedTextEditorPresenter as editor");
+        if (!(activeEditor instanceof TextEditorPresenter)) {
+            Log.error(getClass(), "Open Declaration support only TextEditorPresenter as editor");
             return;
         }
-        EmbeddedTextEditorPresenter editor = ((EmbeddedTextEditorPresenter)activeEditor);
+        TextEditorPresenter editor = ((TextEditorPresenter)activeEditor);
         int offset = editor.getCursorOffset();
         final VirtualFile file = editor.getEditorInput().getFile();
         Unmarshallable<OpenDeclarationDescriptor> unmarshaller =
@@ -168,8 +168,8 @@ public class OpenDeclarationFinder {
         new Timer() { //in some reason we need here timeout otherwise it not work cursor don't set to correct position
             @Override
             public void run() {
-                if (editor instanceof EmbeddedTextEditorPresenter) {
-                    ((EmbeddedTextEditorPresenter)editor).getDocument().setSelectedRange(
+                if (editor instanceof TextEditorPresenter) {
+                    ((TextEditorPresenter)editor).getDocument().setSelectedRange(
                             LinearRange.createWithStart(offset).andLength(0), true);
                 }
             }

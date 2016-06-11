@@ -10,7 +10,12 @@
  *******************************************************************************/
 package org.eclipse.che.plugin.docker.client.parser;
 
+import org.eclipse.che.commons.annotation.Nullable;
+
+import javax.validation.constraints.NotNull;
 import java.util.Objects;
+
+import static java.util.Objects.requireNonNull;
 
 /**
  * Describes specific docker image.
@@ -29,7 +34,7 @@ import java.util.Objects;
  * <br>my_private_registry:15800/my_image1:latest
  * <br>my_private_registry:15800/my_image1@sha256:6b019df8c73bb42e606225ef935760b9c428521eba4ad2519ef3ff4cdb3dbd69
  *
- * @author Alexander Garaagtyi
+ * @author Alexander Garagatyi
  */
 public class DockerImageIdentifier {
     private final String  registry;
@@ -37,10 +42,10 @@ public class DockerImageIdentifier {
     private final String  tag;
     private final String  digest;
 
-    public DockerImageIdentifier(String registry,
-                                 String repository,
-                                 String tag,
-                                 String digest) {
+    private DockerImageIdentifier(String registry,
+                                  String repository,
+                                  String tag,
+                                  String digest) {
         this.registry = registry;
         this.repository = repository;
         this.tag = tag;
@@ -51,6 +56,7 @@ public class DockerImageIdentifier {
         return new DockerImageIdentifierBuilder();
     }
 
+    @Nullable
     public String getRegistry() {
         return registry;
     }
@@ -59,10 +65,12 @@ public class DockerImageIdentifier {
         return repository;
     }
 
+    @Nullable
     public String getTag() {
         return tag;
     }
 
+    @Nullable
     public String getDigest() {
         return digest;
     }
@@ -108,7 +116,8 @@ public class DockerImageIdentifier {
             return this;
         }
 
-        public DockerImageIdentifierBuilder setRepository(String repository) {
+        public DockerImageIdentifierBuilder setRepository(@NotNull String repository) {
+            requireNonNull(repository);
             this.repository = repository;
             return this;
         }

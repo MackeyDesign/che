@@ -27,7 +27,7 @@ import org.eclipse.che.ide.api.parts.EditorPartStack;
 import org.eclipse.che.ide.api.parts.PartPresenter;
 import org.eclipse.che.ide.api.parts.PartStackView.TabItem;
 import org.eclipse.che.ide.api.parts.PropertyListener;
-import org.eclipse.che.ide.api.project.tree.VirtualFile;
+import org.eclipse.che.ide.api.resources.VirtualFile;
 import org.eclipse.che.ide.part.PartStackPresenter;
 import org.eclipse.che.ide.part.PartsComparator;
 import org.eclipse.che.ide.part.editor.event.CloseNonPinnedEditorsEvent;
@@ -133,7 +133,7 @@ public class EditorPartStackPresenter extends PartStackPresenter implements Edit
             VirtualFile file = part instanceof AbstractEditorPresenter ? ((AbstractEditorPresenter)part).getEditorInput().getFile()
                                                                        : null;
 
-            final EditorTab editorTab = tabItemFactory.createEditorPartButton(file, part.getTitleSVGImage(), part.getTitle());
+            final EditorTab editorTab = tabItemFactory.createEditorPartButton(file, part.getTitleImage(), part.getTitle());
 
             part.addPropertyListener(new PropertyListener() {
                 @Override

@@ -14,8 +14,8 @@ import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.google.web.bindery.event.shared.EventBus;
 
-import org.eclipse.che.api.git.gwt.client.GitServiceClient;
-import org.eclipse.che.api.project.gwt.client.ProjectServiceClient;
+import org.eclipse.che.ide.api.git.GitServiceClient;
+import org.eclipse.che.ide.api.project.ProjectServiceClient;
 import org.eclipse.che.api.workspace.shared.dto.ProjectConfigDto;
 import org.eclipse.che.ide.api.app.AppContext;
 import org.eclipse.che.ide.api.app.CurrentProject;
@@ -28,6 +28,7 @@ import org.eclipse.che.ide.extension.machine.client.processes.ConsolesPanelPrese
 import org.eclipse.che.ide.rest.AsyncRequestCallback;
 import org.eclipse.che.ide.rest.DtoUnmarshallerFactory;
 
+import static org.eclipse.che.ide.api.notification.StatusNotification.DisplayMode.FLOAT_MODE;
 import static org.eclipse.che.ide.api.notification.StatusNotification.Status.FAIL;
 
 /**
@@ -95,7 +96,7 @@ public class DeleteRepositoryPresenter {
             protected void onFailure(Throwable exception) {
                 console.printError(exception.getMessage());
                 consolesPanelPresenter.addCommandOutput(appContext.getDevMachine().getId(), console);
-                notificationManager.notify(constant.failedToDeleteRepository(), FAIL, true, project.getRootProject());
+                notificationManager.notify(constant.failedToDeleteRepository(), FAIL, FLOAT_MODE, project.getRootProject());
             }
         });
     }

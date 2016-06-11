@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2014-2015 Codenvy, S.A.
+ * Copyright (c) 2012-2016 Codenvy, S.A.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -8,13 +8,12 @@
  * Contributors:
  *   Codenvy, S.A. - initial API and implementation
  *******************************************************************************/
-
 package org.eclipse.che.ide.editor.orion.client.jso;
 
 import com.google.gwt.core.client.JavaScriptObject;
 
-import org.eclipse.che.ide.jseditor.client.link.LinkedMode;
-import org.eclipse.che.ide.jseditor.client.link.LinkedModel;
+import org.eclipse.che.ide.api.editor.link.LinkedMode;
+import org.eclipse.che.ide.api.editor.link.LinkedModel;
 
 /**
  * @author Evgen Vidolob
@@ -106,7 +105,7 @@ public class OrionLinkedModeOverlay extends JavaScriptObject implements LinkedMo
         this._annotationModel.addEventListener("Changed", annotationListener, true);
         this.annotationListener = annotationListener;
         var func = function (param) {
-            listener.@org.eclipse.che.ide.jseditor.client.link.LinkedMode.LinkedModeListener::onLinkedModeExited(*)(param.isSuccessful,
+            listener.@org.eclipse.che.ide.api.editor.link.LinkedMode.LinkedModeListener::onLinkedModeExited(*)(param.isSuccessful,
                 start, end);
         };
         $wnd.che_handels[listener] = func;

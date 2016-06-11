@@ -305,6 +305,12 @@ public interface CoreLocalizationConstant extends Messages {
     @Key("oauth.failed.to.get.authenticator.text")
     String oauthFailedToGetAuthenticatorText();
 
+    @Key("importProject.ssh.key.upload.failed.title")
+    String importProjectSshKeyUploadFailedTitle();
+
+    @Key("importProject.ssh.key.upload.failed.text")
+    String importProjectSshKeyUploadFailedText();
+
     /* Actions */
     @Key("action.newFolder.title")
     String actionNewFolderTitle();
@@ -449,6 +455,9 @@ public interface CoreLocalizationConstant extends Messages {
 
     @Key("print")
     String print();
+
+    @Key("debug")
+    String debug();
 
     @Key("projectProblem.title")
     String projectProblemTitle();
@@ -650,6 +659,12 @@ public interface CoreLocalizationConstant extends Messages {
     String actionFullTextSearchDescription();
 
     String search();
+
+    @Key("text.search.scope.label")
+    String textSearchScopeLabel();
+
+    @Key("text.search.fileFilter.label")
+    String textSearchFileFilterLabel();
 
     @Key("text.search.content.label")
     String textSearchContentLabel();

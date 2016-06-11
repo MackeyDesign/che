@@ -11,6 +11,7 @@
 package org.eclipse.che.api.workspace.server;
 
 import org.eclipse.che.api.core.BadRequestException;
+import org.eclipse.che.api.machine.server.MachineInstanceProviders;
 import org.eclipse.che.api.machine.shared.dto.CommandDto;
 import org.eclipse.che.api.machine.shared.dto.MachineConfigDto;
 import org.eclipse.che.api.machine.shared.dto.MachineSourceDto;
@@ -19,8 +20,12 @@ import org.eclipse.che.api.workspace.server.model.impl.WorkspaceImpl;
 import org.eclipse.che.api.workspace.shared.dto.EnvironmentDto;
 import org.eclipse.che.api.workspace.shared.dto.RecipeDto;
 import org.eclipse.che.api.workspace.shared.dto.WorkspaceConfigDto;
-import org.testng.annotations.BeforeClass;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.testng.MockitoTestNGListener;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
+import org.testng.annotations.Listeners;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;
@@ -32,19 +37,25 @@ import java.util.Optional;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.eclipse.che.dto.server.DtoFactory.newDto;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests for {@link WorkspaceValidator} and {@link DefaultWorkspaceValidator}
  *
  * @author Alexander Reshetnyak
  */
+@Listeners(MockitoTestNGListener.class)
 public class DefaultWorkspaceValidatorTest {
 
-    private WorkspaceValidator wsValidator;
+    @Mock
+    private MachineInstanceProviders machineInstanceProviders;
+    @InjectMocks
+    private DefaultWorkspaceValidator wsValidator;
 
-    @BeforeClass
+    @BeforeMethod
     public void prepare() throws Exception {
-        wsValidator = new DefaultWorkspaceValidator();
+        when(machineInstanceProviders.hasProvider("docker")).thenReturn(true);
+        when(machineInstanceProviders.getProviderTypes()).thenReturn(Arrays.asList(new String[] { "docker", "ssh" }));
     }
 
     @Test
@@ -301,7 +312,7 @@ public class DefaultWorkspaceValidatorTest {
     }
 
     @Test(expectedExceptions = BadRequestException.class,
-          expectedExceptionsMessageRegExp = "Type of machine .* in environment .* is not supported. Supported value is 'docker'.")
+          expectedExceptionsMessageRegExp = "Type .* of machine .* in environment .* is not supported. Supported values: docker, ssh.")
     public void shouldFailValidationIfMachineTypeIsNull() throws Exception {
         final WorkspaceConfigDto config = createConfig();
         config.getEnvironments()
@@ -315,7 +326,7 @@ public class DefaultWorkspaceValidatorTest {
     }
 
     @Test(expectedExceptions = BadRequestException.class,
-          expectedExceptionsMessageRegExp = "Type of machine .* in environment .* is not supported. Supported value is 'docker'.")
+          expectedExceptionsMessageRegExp = "Type .* of machine .* in environment .* is not supported. Supported values: docker, ssh.")
     public void shouldFailValidationIfMachineTypeIsNotDocker() throws Exception {
         final WorkspaceConfigDto config = createConfig();
         config.getEnvironments()
@@ -487,6 +498,19 @@ public class DefaultWorkspaceValidatorTest {
               .getEnvVariables()
               .put("key", null);
 
+
+        wsValidator.validateConfig(config);
+    }
+
+    @Test(expectedExceptions = BadRequestException.class,
+          expectedExceptionsMessageRegExp = "Environment dev-env contains machine with source but this source doesn't define a location or content")
+    public void shouldFailValidationIfMissingLocationOrContent() throws Exception {
+        final WorkspaceConfigDto config = createConfig();
+        config.getEnvironments()
+              .get(0)
+              .getMachineConfigs()
+              .get(0)
+              .withSource(newDto(MachineSourceDto.class).withType("dockerfile"));
 
         wsValidator.validateConfig(config);
     }

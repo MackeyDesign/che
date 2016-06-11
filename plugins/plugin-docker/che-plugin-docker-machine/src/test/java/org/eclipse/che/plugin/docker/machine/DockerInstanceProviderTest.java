@@ -10,12 +10,15 @@
  *******************************************************************************/
 package org.eclipse.che.plugin.docker.machine;
 
+import com.google.common.collect.Sets;
+
 import org.eclipse.che.api.core.NotFoundException;
 import org.eclipse.che.api.core.model.machine.Machine;
+import org.eclipse.che.api.core.model.machine.MachineConfig;
 import org.eclipse.che.api.core.model.machine.MachineStatus;
-import org.eclipse.che.api.core.model.machine.Recipe;
 import org.eclipse.che.api.core.model.machine.ServerConf;
 import org.eclipse.che.api.core.util.LineConsumer;
+import org.eclipse.che.api.machine.server.exception.InvalidRecipeException;
 import org.eclipse.che.api.machine.server.exception.MachineException;
 import org.eclipse.che.api.machine.server.model.impl.LimitsImpl;
 import org.eclipse.che.api.machine.server.model.impl.MachineConfigImpl;
@@ -23,8 +26,9 @@ import org.eclipse.che.api.machine.server.model.impl.MachineImpl;
 import org.eclipse.che.api.machine.server.model.impl.MachineSourceImpl;
 import org.eclipse.che.api.machine.server.model.impl.ServerConfImpl;
 import org.eclipse.che.api.machine.server.recipe.RecipeImpl;
+import org.eclipse.che.api.machine.server.util.RecipeRetriever;
 import org.eclipse.che.commons.env.EnvironmentContext;
-import org.eclipse.che.commons.user.UserImpl;
+import org.eclipse.che.commons.subject.SubjectImpl;
 import org.eclipse.che.plugin.docker.client.DockerConnector;
 import org.eclipse.che.plugin.docker.client.DockerConnectorConfiguration;
 import org.eclipse.che.plugin.docker.client.ProgressMonitor;
@@ -32,6 +36,9 @@ import org.eclipse.che.plugin.docker.client.dto.AuthConfigs;
 import org.eclipse.che.plugin.docker.client.json.ContainerConfig;
 import org.eclipse.che.plugin.docker.client.json.ContainerCreated;
 import org.eclipse.che.plugin.docker.client.json.HostConfig;
+import org.eclipse.che.plugin.docker.client.params.PullParams;
+import org.eclipse.che.plugin.docker.client.params.RemoveImageParams;
+import org.eclipse.che.plugin.docker.client.params.TagParams;
 import org.eclipse.che.plugin.docker.machine.node.DockerNode;
 import org.eclipse.che.plugin.docker.machine.node.WorkspaceFolderPathProvider;
 import org.mockito.ArgumentCaptor;
@@ -40,6 +47,7 @@ import org.mockito.Mock;
 import org.mockito.testng.MockitoTestNGListener;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Listeners;
 import org.testng.annotations.Test;
 
@@ -54,7 +62,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.emptyList;
+import static org.eclipse.che.plugin.docker.machine.DockerInstanceProvider.DOCKER_FILE_TYPE;
+import static org.eclipse.che.plugin.docker.machine.DockerInstanceProvider.DOCKER_IMAGE_TYPE;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyString;
@@ -63,6 +72,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertEquals;
@@ -71,12 +81,16 @@ import static org.testng.Assert.assertTrue;
 
 @Listeners(MockitoTestNGListener.class)
 public class DockerInstanceProviderTest {
-    private static final String PROJECT_FOLDER_PATH = "/projects";
-    private static final String CONTAINER_ID        = "containerId";
-    private static final String WORKSPACE_ID        = "wsId";
-    private static final String DISPLAY_NAME        = "DisplayName";
-    private static final String USER_TOKEN          = "userToken";
-    private static final int    MEMORY_LIMIT_MB     = 64;
+    private static final String  PROJECT_FOLDER_PATH    = "/projects";
+    private static final String  CONTAINER_ID           = "containerId";
+    private static final String  WORKSPACE_ID           = "wsId";
+    private static final String  MACHINE_ID             = "machineId";
+    private static final String  MACHINE_NAME           = "machineName";
+    private static final String  USER_TOKEN             = "userToken";
+    private static final String  USER_NAME              = "user";
+    private static final int     MEMORY_LIMIT_MB        = 64;
+    private static final boolean SNAPSHOT_USE_REGISTRY  = true;
+    private static final int     MEMORY_SWAP_MULTIPLIER = 0;
 
     @Mock
     private DockerConnector dockerConnector;
@@ -91,6 +105,9 @@ public class DockerInstanceProviderTest {
     private DockerInstanceStopDetector dockerInstanceStopDetector;
 
     @Mock
+    private DockerContainerNameGenerator containerNameGenerator;
+
+    @Mock
     private DockerNode dockerNode;
 
     @Mock
@@ -98,6 +115,9 @@ public class DockerInstanceProviderTest {
 
     @Captor
     private ArgumentCaptor<ContainerConfig> containerConfigArgumentCaptor;
+
+    @Mock
+    private RecipeRetriever recipeRetriever;
 
     private DockerInstanceProvider dockerInstanceProvider;
 
@@ -109,6 +129,8 @@ public class DockerInstanceProviderTest {
                                                                 dockerConnectorConfiguration,
                                                                 dockerMachineFactory,
                                                                 dockerInstanceStopDetector,
+                                                                containerNameGenerator,
+                                                                recipeRetriever,
                                                                 Collections.emptySet(),
                                                                 Collections.emptySet(),
                                                                 Collections.emptySet(),
@@ -119,12 +141,17 @@ public class DockerInstanceProviderTest {
                                                                 false,
                                                                 false,
                                                                 Collections.emptySet(),
-                                                                Collections.emptySet()));
+                                                                Collections.emptySet(),
+                                                                SNAPSHOT_USE_REGISTRY,
+                                                                MEMORY_SWAP_MULTIPLIER));
 
         EnvironmentContext envCont = new EnvironmentContext();
-        envCont.setUser(new UserImpl("user", "userId", USER_TOKEN, null, false));
+        envCont.setSubject(new SubjectImpl(USER_NAME, "userId", USER_TOKEN, false));
         envCont.setWorkspaceId(WORKSPACE_ID);
         EnvironmentContext.setCurrent(envCont);
+
+
+        when(recipeRetriever.getRecipe(any(MachineConfig.class))).thenReturn(new RecipeImpl().withType(DOCKER_FILE_TYPE).withScript("FROM codenvy"));
 
         when(dockerMachineFactory.createNode(anyString(), anyString())).thenReturn(dockerNode);
         when(dockerConnector.createContainer(any(ContainerConfig.class), anyString()))
@@ -143,7 +170,7 @@ public class DockerInstanceProviderTest {
 
     @Test
     public void shouldReturnRecipeTypesDockerfile() throws Exception {
-        assertEquals(dockerInstanceProvider.getRecipeTypes(), Collections.singleton("dockerfile"));
+        assertEquals(dockerInstanceProvider.getRecipeTypes(), Sets.newHashSet(DOCKER_FILE_TYPE, DOCKER_IMAGE_TYPE));
     }
 
     // TODO add tests for instance snapshot removal
@@ -151,7 +178,10 @@ public class DockerInstanceProviderTest {
     @Test
     public void shouldBuildDockerfileOnInstanceCreationFromRecipe() throws Exception {
         String generatedContainerId = "genContainerId";
-        doReturn(generatedContainerId).when(dockerInstanceProvider).generateContainerName(eq(WORKSPACE_ID), eq(DISPLAY_NAME));
+        doReturn(generatedContainerId).when(containerNameGenerator).generateContainerName(eq(WORKSPACE_ID),
+                                                                                          eq(MACHINE_ID),
+                                                                                          eq(USER_NAME),
+                                                                                          eq(MACHINE_NAME));
 
 
         createInstanceFromRecipe();
@@ -175,30 +205,67 @@ public class DockerInstanceProviderTest {
 
         createInstanceFromSnapshot(repo, tag, registry);
 
+        PullParams pullParams = PullParams.create(repo).withRegistry(registry).withTag(tag);
 
-        verify(dockerConnector).pull(eq(repo), eq(tag), eq(registry), any(ProgressMonitor.class));
+        verify(dockerConnector).pull(eq(pullParams), any(ProgressMonitor.class));
+    }
+
+    @Test
+    public void shouldUseLocalImageOnInstanceCreationFromSnapshot() throws Exception {
+        final String repo = "repo";
+        final String tag = "latest";
+        dockerInstanceProvider = getDockerInstanceProvider(false);
+
+        MachineImpl machine = getMachineBuilder().build();
+        final MachineSourceImpl machineSource = new DockerMachineSource(repo).withTag(tag);
+        machine.getConfig().setSource(machineSource);
+
+        dockerInstanceProvider.createInstance(machine,
+                                              LineConsumer.DEV_NULL);
+
+        verify(dockerConnector, never()).pull(anyString(),
+                                              anyString(),
+                                              anyString(),
+                                              any(ProgressMonitor.class));
+    }
+
+    @Test
+    public void shouldRemoveLocalImageDuringRemovalOfSnapshot() throws Exception {
+        final String repo = "repo";
+        final String tag = "latest";
+        final DockerMachineSource dockerMachineSource = new DockerMachineSource(repo).withTag(tag);
+        dockerInstanceProvider = getDockerInstanceProvider(false);
+
+        dockerInstanceProvider.removeInstanceSnapshot(dockerMachineSource);
+
+        verify(dockerConnector, times(1)).removeImage(RemoveImageParams.create(dockerMachineSource.getLocation(false)));
     }
 
     @Test
     public void shouldReTagBuiltImageWithPredictableOnInstanceCreationFromRecipe() throws Exception {
         String generatedContainerId = "genContainerId";
-        doReturn(generatedContainerId).when(dockerInstanceProvider).generateContainerName(WORKSPACE_ID, DISPLAY_NAME);
+        doReturn(generatedContainerId).when(containerNameGenerator).generateContainerName(eq(WORKSPACE_ID),
+                                                                                          eq(MACHINE_ID),
+                                                                                          eq(USER_NAME),
+                                                                                          eq(MACHINE_NAME));
         String repo = "repo1";
         String tag = "tag1";
         String registry = "registry1";
-
+        TagParams tagParams = TagParams.create(registry + "/" + repo + ":" + tag, "eclipse-che/" + generatedContainerId);
 
         createInstanceFromSnapshot(repo, tag, registry);
 
-
-        verify(dockerConnector).tag(eq(registry + "/" + repo + ":" + tag), eq("eclipse-che/" + generatedContainerId), eq(null));
+        verify(dockerConnector).tag(eq(tagParams));
         verify(dockerConnector).removeImage(eq(registry + "/" + repo + ":" + tag), eq(false));
     }
 
     @Test
     public void shouldCreateContainerOnInstanceCreationFromRecipe() throws Exception {
         String generatedContainerId = "genContainerId";
-        doReturn(generatedContainerId).when(dockerInstanceProvider).generateContainerName(WORKSPACE_ID, DISPLAY_NAME);
+        doReturn(generatedContainerId).when(containerNameGenerator).generateContainerName(eq(WORKSPACE_ID),
+                                                                                          eq(MACHINE_ID),
+                                                                                          eq(USER_NAME),
+                                                                                          eq(MACHINE_NAME));
 
 
         createInstanceFromRecipe();
@@ -219,7 +286,10 @@ public class DockerInstanceProviderTest {
     @Test
     public void shouldCreateContainerOnInstanceCreationFromSnapshot() throws Exception {
         String generatedContainerId = "genContainerId";
-        doReturn(generatedContainerId).when(dockerInstanceProvider).generateContainerName(WORKSPACE_ID, DISPLAY_NAME);
+        doReturn(generatedContainerId).when(containerNameGenerator).generateContainerName(eq(WORKSPACE_ID),
+                                                                                          eq(MACHINE_ID),
+                                                                                          eq(USER_NAME),
+                                                                                          eq(MACHINE_NAME));
         createInstanceFromSnapshot();
 
 
@@ -234,6 +304,8 @@ public class DockerInstanceProviderTest {
                                                                 dockerConnectorConfiguration,
                                                                 dockerMachineFactory,
                                                                 dockerInstanceStopDetector,
+                                                                containerNameGenerator,
+                                                                recipeRetriever,
                                                                 Collections.emptySet(),
                                                                 Collections.emptySet(),
                                                                 Collections.emptySet(),
@@ -244,7 +316,9 @@ public class DockerInstanceProviderTest {
                                                                 false,
                                                                 true,
                                                                 Collections.emptySet(),
-                                                                Collections.emptySet()));
+                                                                Collections.emptySet(),
+                                                                SNAPSHOT_USE_REGISTRY,
+                                                                MEMORY_SWAP_MULTIPLIER));
 
         createInstanceFromRecipe();
 
@@ -262,12 +336,15 @@ public class DockerInstanceProviderTest {
     @Test
     public void shouldCallCreationDockerInstanceWithFactoryOnCreateInstanceFromSnapshot() throws Exception {
         String generatedContainerId = "genContainerId";
-        doReturn(generatedContainerId).when(dockerInstanceProvider).generateContainerName(eq(WORKSPACE_ID), eq(DISPLAY_NAME));
+        doReturn(generatedContainerId).when(containerNameGenerator).generateContainerName(eq(WORKSPACE_ID),
+                                                                                          eq(MACHINE_ID),
+                                                                                          eq(USER_NAME),
+                                                                                          eq(MACHINE_NAME));
 
-        final MachineSourceImpl machineSource = new MachineSourceImpl("type", "location");
+        final MachineSourceImpl machineSource = new MachineSourceImpl("type").setLocation("location");
         final MachineImpl machine =
                 new MachineImpl(new MachineConfigImpl(false,
-                                                      DISPLAY_NAME,
+                                                      MACHINE_NAME,
                                                       "machineType",
                                                       machineSource,
                                                       new LimitsImpl(MEMORY_LIMIT_MB),
@@ -277,7 +354,7 @@ public class DockerInstanceProviderTest {
                                 "machineId",
                                 WORKSPACE_ID,
                                 "envName",
-                                "userId",
+                                USER_NAME,
                                 MachineStatus.CREATING,
                                 null);
 
@@ -292,16 +369,20 @@ public class DockerInstanceProviderTest {
                                                     any(LineConsumer.class));
     }
 
+
+
     @Test
     public void shouldCallCreationDockerInstanceWithFactoryOnCreateInstanceFromRecipe() throws Exception {
         String generatedContainerId = "genContainerId";
-        doReturn(generatedContainerId).when(dockerInstanceProvider).generateContainerName(eq(WORKSPACE_ID), eq(DISPLAY_NAME));
+        doReturn(generatedContainerId).when(containerNameGenerator).generateContainerName(eq(WORKSPACE_ID),
+                                                                                          eq(MACHINE_ID),
+                                                                                          eq(USER_NAME),
+                                                                                          eq(MACHINE_NAME));
 
-        final MachineSourceImpl machineSource = new MachineSourceImpl("type", "location");
-        final Recipe recipe = new RecipeImpl().withType("Dockerfile").withScript("FROM busybox");
+        final MachineSourceImpl machineSource = new MachineSourceImpl(DOCKER_FILE_TYPE).setLocation("location");
         final MachineImpl machine =
                 new MachineImpl(new MachineConfigImpl(false,
-                                                      DISPLAY_NAME,
+                                                      MACHINE_NAME,
                                                       "machineType",
                                                       machineSource,
                                                       new LimitsImpl(MEMORY_LIMIT_MB),
@@ -311,11 +392,11 @@ public class DockerInstanceProviderTest {
                                 "machineId",
                                 WORKSPACE_ID,
                                 "envName",
-                                "userId",
+                                USER_NAME,
                                 MachineStatus.CREATING,
                                 null);
 
-        createInstanceFromRecipe(recipe, machine);
+        createInstanceFromRecipe(machine);
 
 
         verify(dockerMachineFactory).createInstance(eq(machine),
@@ -401,24 +482,56 @@ public class DockerInstanceProviderTest {
         assertEquals(createContainerCaptor.getValue().getHostConfig().getMemory(), memorySizeMB * 1024 * 1024);
     }
 
-    @Test
-    public void shouldDisableSwapMemorySizeInContainersOnInstanceCreationFromRecipe() throws Exception {
-        createInstanceFromRecipe();
+    @Test(dataProvider = "swapTestProvider")
+    public void shouldBeAbleToSetCorrectSwapSize(double swapMultiplier, int memoryMB, long expectedSwapSize) throws Exception {
+        // given
+        dockerInstanceProvider = spy(new DockerInstanceProvider(dockerConnector,
+                                                                dockerConnectorConfiguration,
+                                                                dockerMachineFactory,
+                                                                dockerInstanceStopDetector,
+                                                                containerNameGenerator,
+                                                                recipeRetriever,
+                                                                Collections.emptySet(),
+                                                                Collections.emptySet(),
+                                                                Collections.emptySet(),
+                                                                Collections.emptySet(),
+                                                                null,
+                                                                workspaceFolderPathProvider,
+                                                                PROJECT_FOLDER_PATH,
+                                                                false,
+                                                                true,
+                                                                Collections.emptySet(),
+                                                                Collections.emptySet(),
+                                                                SNAPSHOT_USE_REGISTRY,
+                                                                swapMultiplier));
 
+        // when
+        createInstanceFromRecipe(memoryMB);
+
+        // then
         ArgumentCaptor<ContainerConfig> createContainerCaptor = ArgumentCaptor.forClass(ContainerConfig.class);
         verify(dockerConnector).createContainer(createContainerCaptor.capture(), anyString());
-        verify(dockerConnector).startContainer(anyString(), eq(null));
-        assertEquals(createContainerCaptor.getValue().getHostConfig().getMemorySwap(), -1);
+        assertEquals(createContainerCaptor.getValue().getHostConfig().getMemorySwap(), expectedSwapSize);
     }
 
-    @Test
-    public void shouldDisableSwapMemorySizeInContainersOnInstanceCreationFromSnapshot() throws Exception {
-        createInstanceFromSnapshot();
+    @DataProvider(name = "swapTestProvider")
+    public static Object[][] swapTestProvider() {
+        return new Object[][]{
+                {-1, 1000, -1},
+                {0, 1000, 1000L * 1024 * 1024},
+                {0.7, 1000, (long)(1.7 * 1000 * 1024 * 1024)},
+                {1, 1000, 2L * 1000 * 1024 * 1024},
+                {2, 1000, 3L * 1000 * 1024 * 1024},
+                {2.5, 1000, (long)(3.5 * 1000 * 1024 * 1024)}
+        };
+    }
 
-        ArgumentCaptor<ContainerConfig> createContainerCaptor = ArgumentCaptor.forClass(ContainerConfig.class);
-        verify(dockerConnector).createContainer(createContainerCaptor.capture(), anyString());
-        verify(dockerConnector).startContainer(anyString(), eq(null));
-        assertEquals(createContainerCaptor.getValue().getHostConfig().getMemorySwap(), -1);
+    @Test(expectedExceptions = InvalidRecipeException.class)
+    public void checkExceptionIfImageWithContent() throws Exception {
+        MachineImpl machine = getMachineBuilder().build();
+        machine.getConfig().getSource().setContent("hello");
+        machine.getConfig().getSource().setType(DOCKER_IMAGE_TYPE);
+        createInstanceFromRecipe(machine);
     }
 
     @Test
@@ -440,6 +553,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             devServers,
                                                             commonServers,
                                                             Collections.emptySet(),
@@ -450,7 +565,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             Collections.emptySet(),
-                                                            Collections.emptySet());
+                                                            Collections.emptySet(),
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         final boolean isDev = true;
 
@@ -477,6 +594,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             Collections.emptySet(),
                                                             commonServers,
                                                             Collections.emptySet(),
@@ -487,7 +606,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             Collections.emptySet(),
-                                                            Collections.emptySet());
+                                                            Collections.emptySet(),
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         final boolean isDev = false;
 
@@ -520,6 +641,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             devServers,
                                                             commonServers,
                                                             Collections.emptySet(),
@@ -530,7 +653,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             Collections.emptySet(),
-                                                            Collections.emptySet());
+                                                            Collections.emptySet(),
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         final boolean isDev = true;
 
@@ -557,6 +682,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             Collections.emptySet(),
                                                             commonServers,
                                                             Collections.emptySet(),
@@ -567,7 +694,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             Collections.emptySet(),
-                                                            Collections.emptySet());
+                                                            Collections.emptySet(),
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         final boolean isDev = false;
 
@@ -595,6 +724,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
@@ -605,7 +736,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             Collections.emptySet(),
-                                                            Collections.emptySet());
+                                                            Collections.emptySet(),
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         final boolean isDev = false;
 
@@ -636,6 +769,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
@@ -646,7 +781,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             Collections.emptySet(),
-                                                            Collections.emptySet());
+                                                            Collections.emptySet(),
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         final boolean isDev = false;
 
@@ -677,6 +814,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
@@ -687,7 +826,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             Collections.emptySet(),
-                                                            Collections.emptySet());
+                                                            Collections.emptySet(),
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         final boolean isDev = true;
 
@@ -718,6 +859,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
@@ -728,7 +871,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             Collections.emptySet(),
-                                                            Collections.emptySet());
+                                                            Collections.emptySet(),
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         final boolean isDev = true;
 
@@ -754,6 +899,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
@@ -764,7 +911,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             Collections.emptySet(),
-                                                            Collections.emptySet());
+                                                            Collections.emptySet(),
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         when(workspaceFolderPathProvider.getPath(anyString())).thenReturn(expectedHostPathOfProjects);
 
@@ -790,6 +939,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
@@ -800,7 +951,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             Collections.emptySet(),
-                                                            Collections.emptySet());
+                                                            Collections.emptySet(),
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         when(workspaceFolderPathProvider.getPath(anyString())).thenReturn(expectedHostPathOfProjects);
 
@@ -825,6 +978,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
@@ -835,7 +990,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             Collections.emptySet(),
-                                                            Collections.emptySet());
+                                                            Collections.emptySet(),
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         when(dockerNode.getProjectsFolder()).thenReturn("/tmp/projects");
 
@@ -860,6 +1017,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
@@ -870,7 +1029,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             Collections.emptySet(),
-                                                            Collections.emptySet());
+                                                            Collections.emptySet(),
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         when(dockerNode.getProjectsFolder()).thenReturn("/tmp/projects");
 
@@ -902,6 +1063,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
                                                             devVolumes,
@@ -912,7 +1075,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             Collections.emptySet(),
-                                                            Collections.emptySet());
+                                                            Collections.emptySet(),
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         when(workspaceFolderPathProvider.getPath(anyString())).thenReturn(expectedHostPathOfProjects);
         final boolean isDev = true;
@@ -945,6 +1110,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
                                                             devVolumes,
@@ -955,7 +1122,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             Collections.emptySet(),
-                                                            Collections.emptySet());
+                                                            Collections.emptySet(),
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         when(workspaceFolderPathProvider.getPath(anyString())).thenReturn(expectedHostPathOfProjects);
 
@@ -987,6 +1156,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
                                                             devVolumes,
@@ -997,7 +1168,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             Collections.emptySet(),
-                                                            Collections.emptySet());
+                                                            Collections.emptySet(),
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         when(dockerNode.getProjectsFolder()).thenReturn(expectedHostPathOfProjects);
 
@@ -1027,6 +1200,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
                                                             devVolumes,
@@ -1037,7 +1212,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             Collections.emptySet(),
-                                                            Collections.emptySet());
+                                                            Collections.emptySet(),
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         when(dockerNode.getProjectsFolder()).thenReturn(expectedHostPathOfProjects);
 
@@ -1067,6 +1244,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
                                                             devVolumes,
@@ -1077,7 +1256,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             Collections.emptySet(),
-                                                            Collections.emptySet());
+                                                            Collections.emptySet(),
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         when(dockerNode.getProjectsFolder()).thenReturn(expectedHostPathOfProjects);
         final boolean isDev = true;
@@ -1107,6 +1288,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
                                                             devVolumes,
@@ -1117,7 +1300,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             Collections.emptySet(),
-                                                            Collections.emptySet());
+                                                            Collections.emptySet(),
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         when(dockerNode.getProjectsFolder()).thenReturn(expectedHostPathOfProjects);
 
@@ -1147,6 +1332,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
                                                             devVolumes,
@@ -1157,7 +1344,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             Collections.emptySet(),
-                                                            Collections.emptySet());
+                                                            Collections.emptySet(),
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         when(dockerNode.getProjectsFolder()).thenReturn(expectedHostPathOfProjects);
         final boolean isDev = false;
@@ -1189,6 +1378,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
                                                             devVolumes,
@@ -1199,7 +1390,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             Collections.emptySet(),
-                                                            Collections.emptySet());
+                                                            Collections.emptySet(),
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         when(dockerNode.getProjectsFolder()).thenReturn(expectedHostPathOfProjects);
 
@@ -1216,31 +1409,6 @@ public class DockerInstanceProviderTest {
         final String[] actualBinds = argumentCaptor.getValue().getHostConfig().getBinds();
         assertEquals(actualBinds.length, expectedVolumes.size());
         assertEquals(new HashSet<>(asList(actualBinds)), new HashSet<>(expectedVolumes));
-    }
-
-    @Test
-    public void shouldGenerateValidNameForContainerFromPrefixWithValidCharacters() throws Exception {
-        final String userName = "user";
-        final String displayName = "displayName";
-        final String expectedPrefix = String.format("%s_%s_%s_", userName, WORKSPACE_ID.toLowerCase(), displayName.toLowerCase());
-
-        final String containerName = dockerInstanceProvider.generateContainerName(WORKSPACE_ID, displayName);
-
-        assertTrue(containerName.startsWith(expectedPrefix),
-                   "Unexpected container name " + containerName + " while expected " + expectedPrefix + "*");
-    }
-
-    @Test
-    public void shouldGenerateValidNameForContainerFromPrefixWithInvalidCharacters() throws Exception {
-        final String userName = "{use}r+";
-        final String displayName = "displ{[ay Name@";
-        EnvironmentContext.getCurrent().setUser(new UserImpl(userName, "id", "token", emptyList(), false));
-        final String expectedPrefix = String.format("%s_%s_%s_", "user", "thisiswsid", "displayname");
-
-        final String containerName = dockerInstanceProvider.generateContainerName("This is wsId", displayName);
-
-        assertTrue(containerName.startsWith(expectedPrefix),
-                   "Unexpected container name " + containerName + " while expected " + expectedPrefix + "*");
     }
 
     @Test
@@ -1325,6 +1493,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
@@ -1335,7 +1505,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             devEnv,
-                                                            commonEnv);
+                                                            commonEnv,
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         final boolean isDev = true;
 
@@ -1357,6 +1529,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
@@ -1367,7 +1541,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             devEnv,
-                                                            commonEnv);
+                                                            commonEnv,
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         final boolean isDev = false;
 
@@ -1394,6 +1570,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
@@ -1404,7 +1582,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             devEnv,
-                                                            commonEnv);
+                                                            commonEnv,
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         final boolean isDev = true;
 
@@ -1426,6 +1606,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
@@ -1436,7 +1618,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             devEnv,
-                                                            commonEnv);
+                                                            commonEnv,
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         final boolean isDev = false;
 
@@ -1460,6 +1644,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
@@ -1470,7 +1656,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             Collections.emptySet(),
-                                                            Collections.emptySet());
+                                                            Collections.emptySet(),
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         final boolean isDev = false;
 
@@ -1502,6 +1690,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
@@ -1512,7 +1702,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             Collections.emptySet(),
-                                                            Collections.emptySet());
+                                                            Collections.emptySet(),
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         final boolean isDev = true;
 
@@ -1544,6 +1736,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
@@ -1554,7 +1748,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             Collections.emptySet(),
-                                                            Collections.emptySet());
+                                                            Collections.emptySet(),
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         final boolean isDev = false;
 
@@ -1586,6 +1782,8 @@ public class DockerInstanceProviderTest {
                                                             dockerConnectorConfiguration,
                                                             dockerMachineFactory,
                                                             dockerInstanceStopDetector,
+                                                            containerNameGenerator,
+                                                            recipeRetriever,
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
                                                             Collections.emptySet(),
@@ -1596,7 +1794,9 @@ public class DockerInstanceProviderTest {
                                                             false,
                                                             false,
                                                             Collections.emptySet(),
-                                                            Collections.emptySet());
+                                                            Collections.emptySet(),
+                                                            SNAPSHOT_USE_REGISTRY,
+                                                            MEMORY_SWAP_MULTIPLIER);
 
         final boolean isDev = true;
 
@@ -1641,13 +1841,11 @@ public class DockerInstanceProviderTest {
     }
 
     private void createInstanceFromSnapshot(String repo, String tag, String registry) throws NotFoundException, MachineException {
-        createInstanceFromSnapshot(getMachineBuilder().build(), new DockerInstanceKey(repo, tag, registry, "digest"));
+        createInstanceFromSnapshot(getMachineBuilder().build(), new DockerMachineSource(repo).withTag(tag).withRegistry(registry).withDigest("digest"));
     }
 
     private void createInstanceFromRecipe(Machine machine) throws Exception {
-        dockerInstanceProvider.createInstance(new RecipeImpl().withType("Dockerfile")
-                                                              .withScript("FROM busybox"),
-                                              machine,
+        dockerInstanceProvider.createInstance(machine,
                                               LineConsumer.DEV_NULL);
     }
 
@@ -1674,31 +1872,24 @@ public class DockerInstanceProviderTest {
                                                       .build());
     }
 
-    private void createInstanceFromRecipe(Recipe recipe, Machine machine) throws Exception {
-        dockerInstanceProvider.createInstance(recipe,
-                                              machine,
+    private void createInstanceFromSnapshot(MachineImpl machine) throws NotFoundException, MachineException {
+        DockerMachineSource machineSource = new DockerMachineSource("repo").withRegistry("registry").withDigest("digest");
+        machine.getConfig().setSource(machineSource);
+        dockerInstanceProvider.createInstance(machine,
                                               LineConsumer.DEV_NULL);
     }
 
-    private void createInstanceFromSnapshot(Machine machine) throws NotFoundException, MachineException {
-        dockerInstanceProvider.createInstance(new DockerInstanceKey("repo",
-                                                                    "tag",
-                                                                    "registry",
-                                                                    "digest"),
-                                              machine,
-                                              LineConsumer.DEV_NULL);
-    }
+    private void createInstanceFromSnapshot(MachineImpl machine, DockerMachineSource dockerMachineSource) throws NotFoundException,
+                                                                                                             MachineException {
 
-    private void createInstanceFromSnapshot(Machine machine, DockerInstanceKey dockerInstanceKey) throws NotFoundException,
-                                                                                                         MachineException {
-        dockerInstanceProvider.createInstance(dockerInstanceKey,
-                                              machine,
+        machine.getConfig().setSource(dockerMachineSource);
+        dockerInstanceProvider.createInstance(machine,
                                               LineConsumer.DEV_NULL);
     }
 
     private MachineImpl.MachineImplBuilder getMachineBuilder() {
         return MachineImpl.builder().fromMachine(new MachineImpl(getMachineConfigBuilder().build(),
-                                                                 "machineId",
+                                                                 MACHINE_ID,
                                                                  WORKSPACE_ID,
                                                                  "envName",
                                                                  "userId",
@@ -1706,11 +1897,33 @@ public class DockerInstanceProviderTest {
                                                                  null));
     }
 
+    private DockerInstanceProvider getDockerInstanceProvider(boolean snapshotUseRegistry) throws Exception {
+        return spy(new DockerInstanceProvider(dockerConnector,
+                                              dockerConnectorConfiguration,
+                                              dockerMachineFactory,
+                                              dockerInstanceStopDetector,
+                                              containerNameGenerator,
+                                              recipeRetriever,
+                                              Collections.emptySet(),
+                                              Collections.emptySet(),
+                                              Collections.emptySet(),
+                                              Collections.emptySet(),
+                                              null,
+                                              workspaceFolderPathProvider,
+                                              PROJECT_FOLDER_PATH,
+                                              false,
+                                              false,
+                                              Collections.emptySet(),
+                                              Collections.emptySet(),
+                                              snapshotUseRegistry,
+                                              MEMORY_SWAP_MULTIPLIER));
+    }
+
     private MachineConfigImpl.MachineConfigImplBuilder getMachineConfigBuilder() {
         return MachineConfigImpl.builder().fromConfig(new MachineConfigImpl(false,
-                                                                            DISPLAY_NAME,
+                                                                            MACHINE_NAME,
                                                                             "machineType",
-                                                                            new MachineSourceImpl("source type", "source location"),
+                                                                            new MachineSourceImpl(DOCKER_FILE_TYPE).setContent("FROM codenvy"),
                                                                             new LimitsImpl(MEMORY_LIMIT_MB),
                                                                             asList(new ServerConfImpl("ref1",
                                                                                                       "8080",

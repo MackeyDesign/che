@@ -14,7 +14,7 @@ import com.google.inject.Inject;
 import com.google.inject.Singleton;
 
 import org.eclipse.che.api.core.ErrorCodes;
-import org.eclipse.che.api.git.gwt.client.GitServiceClient;
+import org.eclipse.che.ide.api.git.GitServiceClient;
 import org.eclipse.che.api.git.shared.LogResponse;
 import org.eclipse.che.api.git.shared.Revision;
 import org.eclipse.che.api.workspace.shared.dto.ProjectConfigDto;
@@ -32,8 +32,8 @@ import org.eclipse.che.ide.part.explorer.project.ProjectExplorerPresenter;
 import org.eclipse.che.ide.rest.AsyncRequestCallback;
 import org.eclipse.che.ide.rest.DtoUnmarshallerFactory;
 import org.eclipse.che.ide.rest.Unmarshallable;
-import org.eclipse.che.ide.ui.dialogs.ConfirmCallback;
-import org.eclipse.che.ide.ui.dialogs.DialogFactory;
+import org.eclipse.che.ide.api.dialogs.ConfirmCallback;
+import org.eclipse.che.ide.api.dialogs.DialogFactory;
 import org.eclipse.che.ide.util.loging.Log;
 import org.eclipse.che.ide.websocket.WebSocketException;
 import org.eclipse.che.ide.websocket.rest.RequestCallback;
@@ -42,6 +42,8 @@ import javax.validation.constraints.NotNull;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.eclipse.che.ide.api.notification.StatusNotification.DisplayMode.FLOAT_MODE;
+import static org.eclipse.che.ide.api.notification.StatusNotification.DisplayMode.NOT_EMERGE_MODE;
 import static org.eclipse.che.ide.api.notification.StatusNotification.Status.FAIL;
 import static org.eclipse.che.ide.util.ExceptionUtils.getErrorCode;
 
@@ -257,7 +259,7 @@ public class CommitPresenter implements CommitView.ActionDelegate {
         GitOutputConsole console = gitOutputConsoleFactory.create(COMMIT_COMMAND_NAME);
         console.printError(errorMessage);
         consolesPanelPresenter.addCommandOutput(appContext.getDevMachine().getId(), console);
-        notificationManager.notify(constant.commitFailed(), errorMessage, FAIL, true, appContext.getCurrentProject().getRootProject());
+        notificationManager.notify(constant.commitFailed(), errorMessage, FAIL, FLOAT_MODE, appContext.getCurrentProject().getRootProject());
     }
 
     /** {@inheritDoc} */
@@ -302,7 +304,7 @@ public class CommitPresenter implements CommitView.ActionDelegate {
                                  } else {
                                      Log.warn(CommitPresenter.class, "Git log failed", exception);
                                      CommitPresenter.this.view.setMessage("");
-                                     notificationManager.notify(constant.logFailed(), FAIL, false, project);
+                                     notificationManager.notify(constant.logFailed(), FAIL, NOT_EMERGE_MODE, project);
                                  }
                              }
                          });

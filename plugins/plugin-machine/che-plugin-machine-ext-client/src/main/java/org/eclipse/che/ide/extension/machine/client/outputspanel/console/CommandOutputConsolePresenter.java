@@ -15,14 +15,16 @@ import com.google.inject.Inject;
 import com.google.inject.assistedinject.Assisted;
 import com.google.web.bindery.event.shared.EventBus;
 
-import org.eclipse.che.api.machine.gwt.client.MachineServiceClient;
-import org.eclipse.che.api.machine.gwt.client.OutputMessageUnmarshaller;
+import org.eclipse.che.ide.api.machine.MachineServiceClient;
+import org.eclipse.che.ide.api.machine.OutputMessageUnmarshaller;
 import org.eclipse.che.api.machine.shared.dto.MachineProcessDto;
 import org.eclipse.che.api.machine.shared.dto.event.MachineProcessEvent;
+import org.eclipse.che.api.promises.client.Operation;
+import org.eclipse.che.api.promises.client.OperationException;
 import org.eclipse.che.ide.extension.machine.client.MachineResources;
 import org.eclipse.che.ide.extension.machine.client.command.CommandConfiguration;
 import org.eclipse.che.ide.extension.machine.client.command.CommandManager;
-import org.eclipse.che.ide.extension.machine.client.processes.event.ProcessFinishedEvent;
+import org.eclipse.che.ide.extension.machine.client.processes.ProcessFinishedEvent;
 import org.eclipse.che.ide.rest.DtoUnmarshallerFactory;
 import org.eclipse.che.ide.util.loging.Log;
 import org.eclipse.che.ide.websocket.MessageBus;
@@ -33,11 +35,11 @@ import org.eclipse.che.ide.websocket.rest.SubscriptionHandler;
 import org.eclipse.che.ide.websocket.rest.Unmarshallable;
 import org.vectomatic.dom.svg.ui.SVGResource;
 
-import static com.google.common.base.Strings.isNullOrEmpty;
-import static org.eclipse.che.ide.extension.machine.client.command.edit.EditCommandsPresenter.PREVIEW_URL_ATTR;
-
 import java.util.ArrayList;
 import java.util.List;
+
+import static com.google.common.base.Strings.isNullOrEmpty;
+import static org.eclipse.che.ide.extension.machine.client.command.edit.EditCommandsPresenter.PREVIEW_URL_ATTR;
 
 /**
  * Console for command output.
@@ -53,6 +55,7 @@ public class CommandOutputConsolePresenter implements CommandOutputConsole, Outp
     private final CommandConfiguration   commandConfiguration;
     private final EventBus               eventBus;
     private final String                 machineId;
+    private final CommandManager         commandManager;
 
     private MessageBus                   messageBus;
     private int                          pid;
@@ -60,10 +63,16 @@ public class CommandOutputConsolePresenter implements CommandOutputConsole, Outp
     private MessageHandler               outputHandler;
     private boolean                      finished;
 
+    /** Wrap text or not */
+    private boolean                      wrapText = false;
+
+    /** Follow output when printing text */
+    private boolean                      followOutput = true;
+
     private List<ConsoleOutputListener>  outputListenes = new ArrayList<>();
 
     @Inject
-    public CommandOutputConsolePresenter(OutputConsoleView view,
+    public CommandOutputConsolePresenter(final OutputConsoleView view,
                                          DtoUnmarshallerFactory dtoUnmarshallerFactory,
                                          final MessageBusProvider messageBusProvider,
                                          MachineServiceClient machineServiceClient,
@@ -80,12 +89,18 @@ public class CommandOutputConsolePresenter implements CommandOutputConsole, Outp
         this.machineId = machineId;
         this.messageBus = messageBusProvider.getMessageBus();
         this.eventBus = eventBus;
+        this.commandManager = commandManager;
 
         view.setDelegate(this);
 
         final String previewUrl = commandConfiguration.getAttributes().get(PREVIEW_URL_ATTR);
         if (!isNullOrEmpty(previewUrl)) {
-            view.printPreviewUrl(commandManager.substituteProperties(previewUrl));
+            commandManager.substituteProperties(previewUrl).then(new Operation<String>() {
+                @Override
+                public void apply(String arg) throws OperationException {
+                    view.showPreviewUrl(arg);
+                }
+            });
         } else {
             view.hidePreview();
         }
@@ -113,6 +128,9 @@ public class CommandOutputConsolePresenter implements CommandOutputConsole, Outp
 
     @Override
     public void listenToOutput(String wsChannel) {
+        view.enableStopButton(true);
+        view.toggleScrollToEndButton(true);
+
         outputChannel = wsChannel;
         outputHandler = new SubscriptionHandler<String>(new OutputMessageUnmarshaller()) {
             @Override
@@ -137,7 +155,7 @@ public class CommandOutputConsolePresenter implements CommandOutputConsole, Outp
     public void attachToProcess(final MachineProcessDto process) {
         this.pid = process.getPid();
 
-        view.printCommandLine(process.getCommandLine());
+        view.showCommandLine(process.getCommandLine());
 
         final Unmarshallable<MachineProcessEvent> unmarshaller = dtoUnmarshallerFactory.newWSUnmarshaller(MachineProcessEvent.class);
         final String processStateChannel = "machine:process:" + machineId;
@@ -153,11 +171,14 @@ public class CommandOutputConsolePresenter implements CommandOutputConsole, Outp
                 switch (result.getEventType()) {
                     case STOPPED:
                         finished = true;
+                        view.enableStopButton(false);
+
                         eventBus.fireEvent(new ProcessFinishedEvent(null));
                         break;
 
                     case ERROR:
                         finished = true;
+                        view.enableStopButton(false);
 
                         eventBus.fireEvent(new ProcessFinishedEvent(null));
 
@@ -176,6 +197,8 @@ public class CommandOutputConsolePresenter implements CommandOutputConsole, Outp
             @Override
             protected void onErrorReceived(Throwable exception) {
                 finished = true;
+                view.enableStopButton(false);
+
                 wsUnsubscribe(processStateChannel, this);
                 wsUnsubscribe(outputChannel, outputHandler);
             }
@@ -218,6 +241,51 @@ public class CommandOutputConsolePresenter implements CommandOutputConsole, Outp
     @Override
     public void addOutputListener(ConsoleOutputListener listener) {
         outputListenes.add(listener);
+    }
+
+    @Override
+    public void reRunProcessButtonClicked() {
+        if (isFinished()) {
+            commandManager.execute(commandConfiguration);
+        } else {
+            machineServiceClient.stopProcess(machineId, pid).then(new Operation<Void>() {
+                @Override
+                public void apply(Void arg) throws OperationException {
+                    commandManager.execute(commandConfiguration);
+                }
+            });
+        }
+    }
+
+    @Override
+    public void stopProcessButtonClicked() {
+        stop();
+    }
+
+    @Override
+    public void clearOutputsButtonClicked() {
+        view.clearConsole();
+    }
+
+    @Override
+    public void wrapTextButtonClicked() {
+        wrapText = !wrapText;
+        view.wrapText(wrapText);
+        view.toggleWrapTextButton(wrapText);
+    }
+
+    @Override
+    public void scrollToBottomButtonClicked() {
+        followOutput = !followOutput;
+
+        view.toggleScrollToEndButton(followOutput);
+        view.enableAutoScroll(followOutput);
+    }
+
+    @Override
+    public void onOutputScrolled(boolean bottomReached) {
+        followOutput = bottomReached;
+        view.toggleScrollToEndButton(bottomReached);
     }
 
 }

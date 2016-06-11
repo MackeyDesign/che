@@ -24,10 +24,7 @@ import org.eclipse.che.api.core.model.machine.ServerConf;
 public class DockerMachineModule extends AbstractModule {
     @Override
     protected void configure() {
-        Multibinder<org.eclipse.che.api.machine.server.spi.InstanceProvider> machineImageProviderMultibinder =
-                Multibinder.newSetBinder(binder(), org.eclipse.che.api.machine.server.spi.InstanceProvider.class);
-        machineImageProviderMultibinder.addBinding()
-                                       .to(org.eclipse.che.plugin.docker.machine.DockerInstanceProvider.class);
+        bind(org.eclipse.che.plugin.docker.machine.cleaner.DockerContainerCleaner.class);
 
         Multibinder<String> debMachineEnvVars = Multibinder.newSetBinder(binder(),
                                                                          String.class,

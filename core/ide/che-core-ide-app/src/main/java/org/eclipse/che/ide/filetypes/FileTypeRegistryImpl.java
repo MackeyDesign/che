@@ -12,7 +12,7 @@ package org.eclipse.che.ide.filetypes;
 
 import org.eclipse.che.ide.api.filetypes.FileType;
 import org.eclipse.che.ide.api.filetypes.FileTypeRegistry;
-import org.eclipse.che.ide.api.project.tree.VirtualFile;
+import org.eclipse.che.ide.api.resources.VirtualFile;
 
 import com.google.common.base.Strings;
 import com.google.gwt.regexp.shared.RegExp;
@@ -63,19 +63,6 @@ public class FileTypeRegistryImpl implements FileTypeRegistry {
         if (!Strings.isNullOrEmpty(extension)) {
             for (FileType type : fileTypes) {
                 if (type.getExtension() != null && type.getExtension().equals(extension)) {
-                    return type;
-                }
-            }
-        }
-
-        return unknownFileType;
-    }
-
-    @Override
-    public FileType getFileTypeByMimeType(String mimeType) {
-        if (!Strings.isNullOrEmpty(mimeType)) {
-            for (FileType type : fileTypes) {
-                if (type.getMimeTypes() != null && type.getMimeTypes().contains(mimeType)) {
                     return type;
                 }
             }

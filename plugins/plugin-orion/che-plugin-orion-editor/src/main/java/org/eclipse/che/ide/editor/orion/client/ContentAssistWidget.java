@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2014-2015 Codenvy, S.A.
+ * Copyright (c) 2012-2016 Codenvy, S.A.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -8,7 +8,6 @@
  * Contributors:
  *   Codenvy, S.A. - initial API and implementation
  *******************************************************************************/
-
 package org.eclipse.che.ide.editor.orion.client;
 
 import elemental.dom.Element;
@@ -32,18 +31,18 @@ import com.google.gwt.user.client.ui.Widget;
 import com.google.inject.assistedinject.Assisted;
 import com.google.inject.assistedinject.AssistedInject;
 
-import org.eclipse.che.ide.api.texteditor.HandlesUndoRedo;
-import org.eclipse.che.ide.api.texteditor.UndoableEditor;
+import org.eclipse.che.ide.api.editor.texteditor.HandlesUndoRedo;
+import org.eclipse.che.ide.api.editor.texteditor.UndoableEditor;
 import org.eclipse.che.ide.editor.orion.client.jso.OrionKeyModeOverlay;
 import org.eclipse.che.ide.editor.orion.client.jso.OrionModelChangedEventOverlay;
 import org.eclipse.che.ide.editor.orion.client.jso.OrionPixelPositionOverlay;
 import org.eclipse.che.ide.editor.orion.client.jso.OrionTextViewOverlay;
-import org.eclipse.che.ide.jseditor.client.codeassist.Completion;
-import org.eclipse.che.ide.jseditor.client.codeassist.CompletionProposal;
-import org.eclipse.che.ide.jseditor.client.codeassist.CompletionProposalExtension;
-import org.eclipse.che.ide.jseditor.client.events.CompletionRequestEvent;
-import org.eclipse.che.ide.jseditor.client.popup.PopupResources;
-import org.eclipse.che.ide.jseditor.client.text.LinearRange;
+import org.eclipse.che.ide.api.editor.codeassist.Completion;
+import org.eclipse.che.ide.api.editor.codeassist.CompletionProposal;
+import org.eclipse.che.ide.api.editor.codeassist.CompletionProposalExtension;
+import org.eclipse.che.ide.api.editor.events.CompletionRequestEvent;
+import org.eclipse.che.ide.ui.popup.PopupResources;
+import org.eclipse.che.ide.api.editor.text.LinearRange;
 import org.eclipse.che.ide.util.dom.Elements;
 import org.eclipse.che.ide.util.loging.Log;
 

@@ -73,34 +73,6 @@ export class CreateProjectCtrl {
 
     this.generateWorkspaceName();
 
-    this.headerSteps = [
-      {
-        id: '#create-project-source-id',
-        name: 'source',
-        link: 'create-project-source'
-      },
-      {
-        id: '#create-project-source-stack',
-        name: 'stack',
-        link: 'create-project-stack'
-      },
-      {
-        id: '#create-project-workspace',
-        name: 'workspace',
-        link: 'create-project-workspace'
-      },
-      {
-        id: '#create-project-source-template',
-        name: 'template',
-        link: 'create-project-template'
-      },
-      {
-        id: '#create-project-source-information',
-        name: 'metadata',
-        link: 'create-project-information'
-      }
-    ];
-
     this.messageBus = null;
     this.recipeUrl = null;
 
@@ -182,6 +154,8 @@ export class CreateProjectCtrl {
     this.projectName = null;
     this.projectDescription = null;
     this.defaultWorkspaceName = null;
+
+    cheAPI.cheWorkspace.getWorkspaces();
   }
 
   /**
@@ -347,6 +321,13 @@ export class CreateProjectCtrl {
     this.isReady = !('github' === tab || 'samples' === tab);
   }
 
+  /**
+   * Returns current selected tab
+   * @returns {string|*}
+   */
+  getCurrentTab() {
+    return this.currentTab;
+  }
 
   startWorkspace(bus, workspace) {
     // then we've to start workspace
@@ -491,7 +472,7 @@ export class CreateProjectCtrl {
       let deferredResolve = this.$q.defer();
       let deferredResolvePromise = deferredResolve.promise;
 
-      let importPromise = this.cheAPI.getProject().importProject(workspaceId, projectName, projectData.source);
+      let importPromise = this.cheAPI.getWorkspace().getWorkspaceAgent(workspaceId).getProject().importProject(projectName, projectData.source);
 
       importPromise.then(() => {
         // add commands if there are some that have been defined
@@ -513,6 +494,8 @@ export class CreateProjectCtrl {
       promise = this.$q.all([deferredImportPromise, deferredAddCommandPromise, deferredResolvePromise]);
     }
     promise.then(() => {
+      this.cheAPI.getWorkspace().fetchWorkspaces();
+
       this.cleanupChannels(websocketStream, workspaceBus, bus, channel);
       this.createProjectSvc.setCurrentProgressStep(4);
     }, (error) => {
@@ -541,21 +524,24 @@ export class CreateProjectCtrl {
       projectDetails.attributes = {};
     }
 
+    let projectService = this.cheAPI.getWorkspace().getWorkspaceAgent(workspaceId).getProject();
+    let projectTypeService = this.cheAPI.getWorkspace().getWorkspaceAgent(workspaceId).getProjectType();
+
     if (projectDetails.type) {
-      let updateProjectPromise = this.cheAPI.getProject().updateProject(workspaceId, projectName, projectDetails);
+      let updateProjectPromise = projectService.updateProject(projectName, projectDetails);
       updateProjectPromise.then(() => {
         deferredResolve.resolve();
       });
       return;
     }
 
-    let resolvePromise = this.cheAPI.getProject().fetchResolve(workspaceId, projectName);
+    let resolvePromise = projectService.fetchResolve(projectName);
     resolvePromise.then(() => {
-      let resultResolve = this.cheAPI.getProject().getResolve(workspaceId, projectName);
+      let resultResolve = projectService.getResolve(projectName);
       // get project-types
-      let fetchTypePromise = this.cheAPI.getProjectType().fetchTypes(workspaceId);
+      let fetchTypePromise = projectTypeService.fetchTypes();
       fetchTypePromise.then(() => {
-        let projectTypesByCategory = this.cheAPI.getProjectType().getProjectTypesIDs(workspaceId);
+        let projectTypesByCategory = projectTypeService.getProjectTypesIDs();
         // now try the estimate for each source
         let deferredEstimate = this.$q.defer();
         let deferredEstimatePromise = deferredResolve.promise;
@@ -573,7 +559,7 @@ export class CreateProjectCtrl {
           let projectType = projectTypesByCategory.get(sourceResolve.type);
           if (projectType.primaryable) {
             // call estimate
-            let estimatePromise = this.cheAPI.getProject().fetchEstimate(workspaceId, projectName, sourceResolve.type);
+            let estimatePromise = projectService.fetchEstimate(projectName, sourceResolve.type);
             estimatePromises.push(estimatePromise);
             estimateTypes.push(sourceResolve.type);
           }
@@ -587,7 +573,7 @@ export class CreateProjectCtrl {
             var firstMatchingType;
             var firstMatchingResult;
             estimateTypes.forEach((type) => {
-              let resultEstimate = this.cheAPI.getProject().getEstimate(workspaceId, projectName, type);
+              let resultEstimate = projectService.getEstimate(projectName, type);
               // add attributes
               // there is a matching estimate
               if (Object.keys(resultEstimate.attributes).length > 0 && 'java' !== type && !firstMatchingType) {
@@ -599,7 +585,7 @@ export class CreateProjectCtrl {
           if (firstMatchingType) {
             projectDetails.attributes = firstMatchingResult;
             projectDetails.type = firstMatchingType;
-            let updateProjectPromise = this.cheAPI.getProject().updateProject(workspaceId, projectName, projectDetails);
+            let updateProjectPromise = projectService.updateProject(projectName, projectDetails);
             updateProjectPromise.then(() => {
               deferredResolve.resolve();
             });
@@ -765,17 +751,6 @@ export class CreateProjectCtrl {
     let recipe = {
       type: 'docker',
       name: recipeName,
-      permissions: {
-        groups: [
-          {
-            name: 'public',
-            acl: [
-              'read'
-            ]
-          }
-        ],
-        users: {}
-      },
       script: recipeScript
     };
 
@@ -860,7 +835,7 @@ export class CreateProjectCtrl {
       this.checkExistingWorkspaceState(this.workspaceSelected);
     }
     // do we have projects ?
-    let projects = this.cheAPI.getProject().getAllProjects();
+    let projects = this.cheAPI.getWorkspace().getAllProjects();
     if (projects.length > 1) {
       // we have projects, show notification first and redirect to the list of projects
       this.createProjectSvc.showPopup();
@@ -896,37 +871,31 @@ export class CreateProjectCtrl {
    * @param workspace workspace for listening status
    */
   subscribeStatusChannel(workspace) {
-    let bus = this.cheAPI.getWebsocket().getBus(workspace.id);
-    // subscribe to workspace events
-    let workspaceChannel = 'workspace:' + workspace.id;
-    this.listeningChannels.push(workspaceChannel);
-    bus.subscribe(workspaceChannel, (message) => {
-      if (message.eventType === 'ERROR' && message.workspaceId === workspace.id) {
-        this.createProjectSvc.setCurrentProgressStep(2);
-        this.getCreationSteps()[this.getCurrentProgressStep()].hasError = true;
-        // need to show the error
-        this.$mdDialog.show(
-          this.$mdDialog.alert()
-            .title('Error when starting agent')
-            .content('Unable to start workspace agent. Error when trying to start the workspace agent: ' + message.error)
-            .ariaLabel('Workspace agent start')
-            .ok('OK')
-        );
-      }
+    this.cheAPI.getWorkspace().fetchStatusChange(workspace.id, 'ERROR').then(() => {
+      this.createProjectSvc.setCurrentProgressStep(2);
+      this.getCreationSteps()[this.getCurrentProgressStep()].hasError = true;
+      // need to show the error
+      this.$mdDialog.show(
+        this.$mdDialog.alert()
+          .title('Error when starting agent')
+          .content('Unable to start workspace agent. Error when trying to start the workspace agent: ' + message.error)
+          .ariaLabel('Workspace agent start')
+          .ok('OK')
+      );
+    });
+    this.cheAPI.getWorkspace().fetchStatusChange(workspace.id, 'RUNNING').then(() => {
+      this.createProjectSvc.setCurrentProgressStep(2);
 
-      if (message.eventType === 'RUNNING' && message.workspaceId === workspace.id) {
-        this.createProjectSvc.setCurrentProgressStep(2);
+      this.importProjectData.project.name = this.projectName;
 
-        this.importProjectData.project.name = this.projectName;
-
-        let promiseWorkspace = this.cheAPI.getWorkspace().fetchWorkspaceDetails(workspace.id);
-        promiseWorkspace.then(() => {
-          let websocketUrl = this.cheAPI.getWorkspace().getWebsocketUrl(workspace.id);
-          // try to connect
-          this.websocketReconnect = 10;
-          this.connectToExtensionServer(websocketUrl, workspace.id, this.importProjectData.project.name, this.importProjectData, bus);
-        });
-      }
+      let promiseWorkspace = this.cheAPI.getWorkspace().fetchWorkspaceDetails(workspace.id);
+      promiseWorkspace.then(() => {
+        let websocketUrl = this.cheAPI.getWorkspace().getWebsocketUrl(workspace.id),
+          bus = this.cheAPI.getWebsocket().getBus(workspace.id);
+        // try to connect
+        this.websocketReconnect = 10;
+        this.connectToExtensionServer(websocketUrl, workspace.id, this.importProjectData.project.name, this.importProjectData, bus);
+      });
     });
   }
 
@@ -935,16 +904,21 @@ export class CreateProjectCtrl {
    */
   createWorkspace() {
     this.createProjectSvc.setWorkspaceOfProject(this.workspaceName);
+
     let attributes = this.stack ? {stackId: this.stack.id} : {};
+    let workspaceConfigTempl = this.stack ? this.stack.workspaceConfig : {};
+    let workspaceConfig = this.cheAPI.getWorkspace().formWorkspaceConfig(workspaceConfigTempl, this.workspaceName, this.recipeUrl, this.workspaceRam);
     //TODO: no account in che ? it's null when testing on localhost
-    let creationPromise = this.cheAPI.getWorkspace().createWorkspace(null, this.workspaceName, this.recipeUrl, this.workspaceRam, attributes);
+    let creationPromise = this.cheAPI.getWorkspace().createWorkspaceFromConfig(null, workspaceConfig, attributes);
     creationPromise.then((workspace) => {
       // init message bus if not there
       if (this.workspaces.length === 0) {
         this.messageBus = this.cheAPI.getWebsocket().getBus(workspace.id);
       }
 
-      this.subscribeStatusChannel(workspace);
+      this.cheAPI.getWorkspace().fetchWorkspaceDetails(workspace.id).then(() => {
+        this.subscribeStatusChannel(workspace);
+      });
 
       this.$timeout(() => {
         let bus = this.cheAPI.getWebsocket().getBus(workspace.id);
@@ -1051,42 +1025,9 @@ export class CreateProjectCtrl {
     return this.createProjectSvc.getIDELink();
   }
 
-  isElementVisible(index) {
-
-    // for each id, check last
-    var maxVisibleElement = 0;
-    for (var i = 0; i < this.headerSteps.length; i++) {
-      var visibleElement = this.isvisible(this.headerSteps[i].id);
-      if (visibleElement) {
-        maxVisibleElement = i;
-      }
-    }
-    return index <= maxVisibleElement;
-  }
-
   isResourceProblem() {
     let currentCreationStep = this.getCreationSteps()[this.getCurrentProgressStep()];
     return currentCreationStep.hasError && currentCreationStep.logs.includes('You can stop other workspaces');
-  }
-
-  isvisible(elementName) {
-    let element = angular.element(elementName);
-    var windowElement = $(window);
-
-    var docViewTop = windowElement.scrollTop();
-    var docViewBottom = docViewTop + windowElement.height();
-
-    var offset = element.offset();
-    if (!offset) {
-      return false;
-    }
-
-    var elemTop = offset.top;
-    var elemBottom = elemTop + element.height();
-
-    // use elemTop if want to see all div or elemBottom if we see partially it
-    /*((elemTop <= docViewBottom) && (elemTop >= docViewTop));*/
-    return ((elemBottom <= docViewBottom) && (elemTop >= docViewTop));
   }
 
   setStackTab(stackTab) {
@@ -1229,5 +1170,25 @@ export class CreateProjectCtrl {
       logs += step.logs + '\n';
     });
     window.open('data:text/csv,' + encodeURIComponent(logs));
+  }
+
+  getCreateButtonTitle() {
+    if (this.workspaceResource === 'from-stack') {
+      return "Create Workspace and Project";
+    } else {
+      return "Load Workspace and Create Project";
+    }
+  }
+
+  /**
+   * Returns list of projects of current workspace
+   * @returns {*|Array}
+   */
+  getWorkspaceProjects() {
+    if (this.workspaceSelected && this.workspaceResource === 'existing-workspace') {
+      let projects = this.cheAPI.getWorkspace().getWorkspaceProjects()[this.workspaceSelected.id];
+      return projects;
+    }
+    return [];
   }
 }

@@ -16,8 +16,8 @@ import com.google.gwtmockito.GwtMockitoTestRunner;
 import com.google.web.bindery.event.shared.EventBus;
 
 import org.eclipse.che.api.core.model.machine.MachineStatus;
-import org.eclipse.che.api.machine.gwt.client.MachineServiceClient;
-import org.eclipse.che.api.machine.gwt.client.events.DevMachineStateEvent;
+import org.eclipse.che.ide.api.machine.MachineServiceClient;
+import org.eclipse.che.ide.api.machine.events.DevMachineStateEvent;
 import org.eclipse.che.api.machine.shared.dto.CommandDto;
 import org.eclipse.che.api.machine.shared.dto.MachineConfigDto;
 import org.eclipse.che.api.machine.shared.dto.MachineDto;
@@ -29,6 +29,7 @@ import org.eclipse.che.api.workspace.shared.dto.WorkspaceDto;
 import org.eclipse.che.ide.api.app.AppContext;
 import org.eclipse.che.ide.api.notification.NotificationManager;
 import org.eclipse.che.ide.api.notification.StatusNotification;
+import org.eclipse.che.ide.api.notification.StatusNotification.DisplayMode;
 import org.eclipse.che.ide.api.outputconsole.OutputConsole;
 import org.eclipse.che.ide.api.parts.WorkspaceAgent;
 import org.eclipse.che.ide.dto.DtoFactory;
@@ -44,9 +45,8 @@ import org.eclipse.che.ide.extension.machine.client.machine.Machine;
 import org.eclipse.che.ide.extension.machine.client.outputspanel.console.CommandConsoleFactory;
 import org.eclipse.che.ide.extension.machine.client.outputspanel.console.CommandOutputConsole;
 import org.eclipse.che.ide.extension.machine.client.perspective.terminal.TerminalPresenter;
-import org.eclipse.che.ide.extension.machine.client.processes.event.ProcessFinishedEvent;
-import org.eclipse.che.ide.ui.dialogs.DialogFactory;
-import org.eclipse.che.ide.ui.dialogs.confirm.ConfirmDialog;
+import org.eclipse.che.ide.api.dialogs.DialogFactory;
+import org.eclipse.che.ide.api.dialogs.ConfirmDialog;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -233,7 +233,7 @@ public class ConsolesPanelPresenterTest {
         OutputConsole outputConsole = mock(OutputConsole.class);
 
         presenter.addCommandOutput(MACHINE_ID, outputConsole);
-        verify(notificationManager).notify(anyString(), anyString(), any(StatusNotification.Status.class), anyBoolean());
+        verify(notificationManager).notify(anyString(), anyString(), any(StatusNotification.Status.class), any(DisplayMode.class));
         verify(localizationConstant, times(2)).machineNotFound(eq(MACHINE_ID));
     }
 
@@ -258,7 +258,7 @@ public class ConsolesPanelPresenterTest {
         verify(view, times(2)).selectNode(anyObject());
         verify(view).setProcessesData(anyObject());
         verify(view).getNodeById(anyString());
-        verify(view).setProcessRunning(anyString(), anyBoolean());
+        verify(view).setStopButtonVisibility(anyString(), anyBoolean());
     }
 
     @Test
@@ -289,7 +289,7 @@ public class ConsolesPanelPresenterTest {
         verify(view, times(2)).selectNode(anyObject());
         verify(view).setProcessesData(anyObject());
         verify(view).getNodeById(anyString());
-        verify(view).setProcessRunning(anyString(), eq(true));
+        verify(view).setStopButtonVisibility(anyString(), eq(true));
     }
 
     @Test
@@ -320,11 +320,11 @@ public class ConsolesPanelPresenterTest {
         verify(view, times(2)).selectNode(anyObject());
         verify(view).setProcessesData(anyObject());
         verify(view).getNodeById(anyString());
-        verify(view).setProcessRunning(anyString(), eq(false));
+        verify(view).setStopButtonVisibility(anyString(), eq(false));
     }
 
     @Test
-    public void shouldShowStopProcessButtonAtAddingTerminal() throws Exception {
+    public void shouldHideStopProcessButtonAtAddingTerminal() throws Exception {
         MachineDto machineDto = mock(MachineDto.class);
         MachineConfigDto machineConfigDto = mock(MachineConfigDto.class);
         when(machineDto.getConfig()).thenReturn(machineConfigDto);
@@ -360,7 +360,7 @@ public class ConsolesPanelPresenterTest {
         verify(terminal).setVisible(eq(true));
         verify(terminal).connect();
         verify(terminal).setListener(anyObject());
-        verify(view).setProcessRunning(anyString(), eq(true));
+        verify(view).setStopButtonVisibility(anyString(), eq(false));
     }
 
     @Test
@@ -447,7 +447,7 @@ public class ConsolesPanelPresenterTest {
         presenter.onTreeNodeSelected(commandNode);
 
         verify(view).showProcessOutput(eq(PROCESS_ID));
-        verify(view).setProcessRunning(anyString(), eq(true));
+        verify(view).setStopButtonVisibility(anyString(), eq(true));
     }
 
     @Test
@@ -460,7 +460,7 @@ public class ConsolesPanelPresenterTest {
 
         presenter.onTreeNodeSelected(commandNode);
 
-        verify(view).setProcessRunning(PROCESS_ID, false);
+        verify(view).setStopButtonVisibility(PROCESS_ID, false);
     }
 
     @Test
@@ -473,7 +473,7 @@ public class ConsolesPanelPresenterTest {
 
         presenter.onTreeNodeSelected(commandNode);
 
-        verify(view).setProcessRunning(PROCESS_ID, true);
+        verify(view).setStopButtonVisibility(PROCESS_ID, true);
     }
 
     @Test
@@ -483,7 +483,7 @@ public class ConsolesPanelPresenterTest {
 
         presenter.onProcessFinished(new ProcessFinishedEvent(null));
 
-        verify(view).setProcessRunning(PROCESS_ID, false);
+        verify(view).setStopButtonVisibility(PROCESS_ID, false);
     }
 
     @Test
@@ -570,7 +570,7 @@ public class ConsolesPanelPresenterTest {
         presenter.onTreeNodeSelected(terminalNode);
 
         verify(view).showProcessOutput(eq(PROCESS_ID));
-        verify(view, never()).setProcessRunning(PROCESS_ID, true);
+        verify(view, never()).setStopButtonVisibility(PROCESS_ID, true);
     }
 
     @Test
@@ -623,7 +623,7 @@ public class ConsolesPanelPresenterTest {
 
     @Test
     public void shouldReturnTitleSVGImage() {
-        presenter.getTitleSVGImage();
+        presenter.getTitleImage();
 
         verify(resources).terminal();
     }

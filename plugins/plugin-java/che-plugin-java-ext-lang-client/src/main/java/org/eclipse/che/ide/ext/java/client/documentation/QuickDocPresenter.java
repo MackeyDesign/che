@@ -16,9 +16,10 @@ import com.google.inject.Singleton;
 import org.eclipse.che.ide.api.app.AppContext;
 import org.eclipse.che.ide.api.editor.EditorAgent;
 import org.eclipse.che.ide.api.editor.EditorPartPresenter;
+import org.eclipse.che.ide.api.machine.WsAgentURLModifier;
 import org.eclipse.che.ide.ext.java.client.projecttree.JavaSourceFolderUtil;
-import org.eclipse.che.ide.jseditor.client.position.PositionConverter;
-import org.eclipse.che.ide.jseditor.client.texteditor.EmbeddedTextEditorPresenter;
+import org.eclipse.che.ide.api.editor.position.PositionConverter;
+import org.eclipse.che.ide.api.editor.texteditor.TextEditorPresenter;
 import org.eclipse.che.ide.util.loging.Log;
 
 /**
@@ -27,18 +28,20 @@ import org.eclipse.che.ide.util.loging.Log;
 @Singleton
 public class QuickDocPresenter implements QuickDocumentation, QuickDocView.ActionDelegate {
 
-
     private final QuickDocView       view;
     private final AppContext         appContext;
     private final EditorAgent        editorAgent;
+    private final WsAgentURLModifier agentURLDecorator;
 
     @Inject
     public QuickDocPresenter(QuickDocView view,
                              AppContext appContext,
-                             EditorAgent editorAgent) {
+                             EditorAgent editorAgent,
+                             WsAgentURLModifier linksDecorator) {
         this.view = view;
         this.appContext = appContext;
         this.editorAgent = editorAgent;
+        this.agentURLDecorator = linksDecorator;
     }
 
     @Override
@@ -48,18 +51,18 @@ public class QuickDocPresenter implements QuickDocumentation, QuickDocView.Actio
             return;
         }
 
-        if (!(activeEditor instanceof EmbeddedTextEditorPresenter)) {
-            Log.error(getClass(), "Quick Document support only EmbeddedTextEditorPresenter as editor");
+        if (!(activeEditor instanceof TextEditorPresenter)) {
+            Log.error(getClass(), "Quick Document support only TextEditorPresenter as editor");
             return;
         }
 
-        EmbeddedTextEditorPresenter editor = ((EmbeddedTextEditorPresenter)activeEditor);
+        TextEditorPresenter editor = ((TextEditorPresenter)activeEditor);
         int offset = editor.getCursorOffset();
         final PositionConverter.PixelCoordinates coordinates = editor.getPositionConverter().offsetToPixel(offset);
-        view.show(appContext.getDevMachine().getWsAgentBaseUrl() + "/jdt/" + appContext.getDevMachine().getWorkspace() + "/javadoc/find?fqn=" +
-                  JavaSourceFolderUtil.getFQNForFile(editor.getEditorInput().getFile()) + "&projectpath=" +
-                  appContext.getCurrentProject().getProjectConfig().getPath() + "&offset=" + offset, coordinates.getX(),
-                  coordinates.getY());
+        final String docUrl = appContext.getDevMachine().getWsAgentBaseUrl() + "/java/javadoc/find?fqn=" +
+                              JavaSourceFolderUtil.getFQNForFile(editor.getEditorInput().getFile()) + "&projectpath=" +
+                              appContext.getCurrentProject().getProjectConfig().getPath() + "&offset=" + offset;
+        view.show(agentURLDecorator.modify(docUrl), coordinates.getX(), coordinates.getY());
     }
 
     @Override

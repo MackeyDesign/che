@@ -11,6 +11,7 @@
 package org.eclipse.che.ide.upload.file;
 
 import org.eclipse.che.ide.CoreLocalizationConstant;
+import org.eclipse.che.ide.api.machine.WsAgentURLModifier;
 import org.eclipse.che.ide.ui.window.Window;
 
 import com.google.gwt.event.dom.client.ChangeEvent;
@@ -39,6 +40,8 @@ public class UploadFileViewImpl extends Window implements UploadFileView {
     public interface UploadFileViewBinder extends UiBinder<Widget, UploadFileViewImpl> {
     }
 
+    private final WsAgentURLModifier wsAgentURLModifier;
+
     Button btnCancel;
     Button btnUpload;
 
@@ -54,7 +57,9 @@ public class UploadFileViewImpl extends Window implements UploadFileView {
 
     /** Create view. */
     @Inject
-    public UploadFileViewImpl(UploadFileViewBinder uploadFileViewBinder, CoreLocalizationConstant locale) {
+    public UploadFileViewImpl(UploadFileViewBinder uploadFileViewBinder,
+                              CoreLocalizationConstant locale,
+                              WsAgentURLModifier wsAgentURLModifier) {
 
         this.setTitle(locale.uploadFileTitle());
         setWidget(uploadFileViewBinder.createAndBindUi(this));
@@ -77,6 +82,7 @@ public class UploadFileViewImpl extends Window implements UploadFileView {
             }
         });
         addButtonToFooter(btnUpload);
+        this.wsAgentURLModifier = wsAgentURLModifier;
     }
 
     /** Bind handlers. */
@@ -126,7 +132,7 @@ public class UploadFileViewImpl extends Window implements UploadFileView {
     /** {@inheritDoc} */
     @Override
     public void setAction(@NotNull String url) {
-        submitForm.setAction(url);
+        submitForm.setAction(wsAgentURLModifier.modify(url));
         submitForm.setMethod(FormPanel.METHOD_POST);
     }
 
@@ -143,9 +149,11 @@ public class UploadFileViewImpl extends Window implements UploadFileView {
     @NotNull
     public String getFileName() {
         String fileName = file.getFilename();
-        if (fileName.contains("/") || fileName.contains("\\")) {
-            int index = fileName.contains("\\") ? fileName.lastIndexOf("\\") + 1 : fileName.lastIndexOf("/") + 1;
-            fileName = fileName.substring(index);
+        if (fileName.contains("/")) {
+            return fileName.substring(fileName.lastIndexOf("/") + 1);
+        }
+        if (fileName.contains("\\")) {
+            return fileName.substring(fileName.lastIndexOf("\\") + 1);
         }
         return fileName;
     }

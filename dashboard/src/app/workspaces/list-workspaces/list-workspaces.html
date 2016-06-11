@@ -10,7 +10,7 @@
       Codenvy, S.A. - initial API and implementation
 
 -->
-<che-toolbar che-title="All Workspaces ({{listWorkspacesCtrl.userWorkspaces.length}})"
+<che-toolbar che-title="All Workspaces {{listWorkspacesCtrl.userWorkspaces.length ? '('+listWorkspacesCtrl.userWorkspaces.length+')' : ''}}"
               che-add-button-name="New Workspace"
               che-add-button-href="#/create-workspace"
               che-dropdown-menu="listWorkspacesCtrl.menuOptions"
@@ -30,10 +30,11 @@
         <span class="workspace-list-empty">- No workspaces found</span>
       </che-list-title>
       <che-list ng-show="(listWorkspacesCtrl.userWorkspaces | filter:listWorkspacesCtrl.workspaceFilter).length > 0">
-        <che-workspace-item ng-repeat="workspace in listWorkspacesCtrl.userWorkspaces | filter:listWorkspacesCtrl.workspaceFilter"
-                            ng-model="listWorkspacesCtrl.workspacesSelectedStatus[workspace.id]"
-                            che-selectable="true"
-                            che-workspace-item="workspace"></che-workspace-item>
+        <che-workspace-item
+                ng-repeat="workspace in listWorkspacesCtrl.userWorkspaces | orderBy:'config.name' | filter:listWorkspacesCtrl.workspaceFilter"
+                ng-model="listWorkspacesCtrl.workspacesSelectedStatus[workspace.id]"
+                che-selectable="true"
+                che-workspace-item="workspace"></che-workspace-item>
       </che-list>
     </div>
   </md-content>

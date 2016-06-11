@@ -16,16 +16,16 @@ import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.google.web.bindery.event.shared.EventBus;
 
-import org.eclipse.che.api.machine.gwt.client.MachineServiceClient;
-import org.eclipse.che.api.machine.gwt.client.events.DevMachineStateEvent;
+import org.eclipse.che.ide.api.machine.MachineServiceClient;
+import org.eclipse.che.ide.api.machine.events.DevMachineStateEvent;
 import org.eclipse.che.api.machine.shared.dto.CommandDto;
 import org.eclipse.che.api.machine.shared.dto.MachineDto;
 import org.eclipse.che.api.machine.shared.dto.MachineProcessDto;
 import org.eclipse.che.api.promises.client.Operation;
 import org.eclipse.che.api.promises.client.OperationException;
 import org.eclipse.che.api.promises.client.PromiseError;
-import org.eclipse.che.api.workspace.gwt.client.event.WorkspaceStoppedEvent;
-import org.eclipse.che.api.workspace.gwt.client.event.WorkspaceStoppedHandler;
+import org.eclipse.che.ide.api.workspace.event.WorkspaceStoppedEvent;
+import org.eclipse.che.ide.api.workspace.event.WorkspaceStoppedHandler;
 import org.eclipse.che.commons.annotation.Nullable;
 import org.eclipse.che.ide.api.app.AppContext;
 import org.eclipse.che.ide.api.mvp.View;
@@ -48,10 +48,8 @@ import org.eclipse.che.ide.extension.machine.client.outputspanel.console.Command
 import org.eclipse.che.ide.extension.machine.client.outputspanel.console.CommandOutputConsole;
 import org.eclipse.che.ide.extension.machine.client.outputspanel.console.DefaultOutputConsole;
 import org.eclipse.che.ide.extension.machine.client.perspective.terminal.TerminalPresenter;
-import org.eclipse.che.ide.extension.machine.client.processes.event.ProcessFinishedEvent;
-import org.eclipse.che.ide.extension.machine.client.processes.event.ProcessFinishedHandler;
-import org.eclipse.che.ide.ui.dialogs.ConfirmCallback;
-import org.eclipse.che.ide.ui.dialogs.DialogFactory;
+import org.eclipse.che.ide.api.dialogs.ConfirmCallback;
+import org.eclipse.che.ide.api.dialogs.DialogFactory;
 import org.eclipse.che.ide.util.loging.Log;
 import org.vectomatic.dom.svg.ui.SVGResource;
 
@@ -61,6 +59,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.eclipse.che.ide.api.notification.StatusNotification.DisplayMode.FLOAT_MODE;
 import static org.eclipse.che.ide.api.notification.StatusNotification.Status.FAIL;
 import static org.eclipse.che.ide.extension.machine.client.perspective.terminal.TerminalPresenter.TerminalStateListener;
 import static org.eclipse.che.ide.extension.machine.client.processes.ProcessTreeNode.ProcessNodeType.COMMAND_NODE;
@@ -78,7 +77,7 @@ import static org.eclipse.che.ide.extension.machine.client.processes.ProcessTree
 @Singleton
 public class ConsolesPanelPresenter extends BasePresenter implements ConsolesPanelView.ActionDelegate,
                                                                      HasView,
-                                                                     ProcessFinishedHandler,
+                                                                     ProcessFinishedEvent.Handler,
                                                                      OutputConsole.ConsoleOutputListener,
                                                                      WorkspaceStoppedHandler,
                                                                      MachineStateEvent.Handler {
@@ -145,8 +144,6 @@ public class ConsolesPanelPresenter extends BasePresenter implements ConsolesPan
         this.consoleCommands = new HashMap<>();
         this.machineNodes = new HashMap<>();
 
-        fetchMachines();
-
         this.view.setDelegate(this);
         this.view.setTitle(localizationConstant.viewConsolesTitle());
 
@@ -164,13 +161,15 @@ public class ConsolesPanelPresenter extends BasePresenter implements ConsolesPan
         eventBus.addHandler(ProcessFinishedEvent.TYPE, this);
         eventBus.addHandler(WorkspaceStoppedEvent.TYPE, this);
         eventBus.addHandler(MachineStateEvent.TYPE, this);
+
+        fetchMachines();
     }
 
     @Override
     public void onProcessFinished(ProcessFinishedEvent event) {
         for (Map.Entry<String, OutputConsole> entry : consoles.entrySet()) {
             if (entry.getValue().isFinished()) {
-                view.setProcessRunning(entry.getKey(), false);
+                view.setStopButtonVisibility(entry.getKey(), false);
             }
         }
     }
@@ -193,7 +192,7 @@ public class ConsolesPanelPresenter extends BasePresenter implements ConsolesPan
 
     @Nullable
     @Override
-    public SVGResource getTitleSVGImage() {
+    public SVGResource getTitleImage() {
         return resources.terminal();
     }
 
@@ -330,7 +329,7 @@ public class ConsolesPanelPresenter extends BasePresenter implements ConsolesPan
         ProcessTreeNode machineTreeNode = findProcessTreeNodeById(machineId);
         if (machineTreeNode == null) {
             notificationManager.notify(localizationConstant.failedToExecuteCommand(), localizationConstant.machineNotFound(machineId),
-                                       FAIL, true);
+                                       FAIL, FLOAT_MODE);
             Log.error(getClass(), localizationConstant.machineNotFound(machineId));
             return;
         }
@@ -409,7 +408,7 @@ public class ConsolesPanelPresenter extends BasePresenter implements ConsolesPan
 
                 if (machineTreeNode == null) {
                     notificationManager.notify(localizationConstant.failedToConnectTheTerminal(),
-                                               localizationConstant.machineNotFound(machineId), FAIL, true);
+                                               localizationConstant.machineNotFound(machineId), FAIL, FLOAT_MODE);
                     Log.error(getClass(), localizationConstant.machineNotFound(machineId));
                     return;
                 }
@@ -583,8 +582,10 @@ public class ConsolesPanelPresenter extends BasePresenter implements ConsolesPan
 
         for (Map.Entry<String, OutputConsole> entry : consoles.entrySet()) {
             String nodeId = entry.getKey();
-            if (selectedNodeId.equals(nodeId)) {
-                view.setProcessRunning(nodeId, !entry.getValue().isFinished());
+            if (selectedNodeId.equals(nodeId) && !entry.getValue().isFinished()) {
+                view.setStopButtonVisibility(selectedNodeId, true);
+            } else {
+                view.setStopButtonVisibility(nodeId, false);
             }
         }
     }

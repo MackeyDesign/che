@@ -43,19 +43,23 @@ import org.eclipse.che.ide.ext.java.shared.dto.refactoring.RefactoringStatusEntr
 import org.eclipse.che.ide.ext.java.shared.dto.refactoring.RenameRefactoringSession;
 import org.eclipse.che.ide.ext.java.shared.dto.refactoring.RenameSettings;
 import org.eclipse.che.ide.ext.java.shared.dto.refactoring.ValidateNewName;
-import org.eclipse.che.ide.jseditor.client.texteditor.TextEditor;
-import org.eclipse.che.ide.ui.dialogs.CancelCallback;
-import org.eclipse.che.ide.ui.dialogs.ConfirmCallback;
-import org.eclipse.che.ide.ui.dialogs.DialogFactory;
+import org.eclipse.che.ide.api.editor.texteditor.TextEditor;
+import org.eclipse.che.ide.api.dialogs.CancelCallback;
+import org.eclipse.che.ide.api.dialogs.ConfirmCallback;
+import org.eclipse.che.ide.api.dialogs.DialogFactory;
 
 import java.util.List;
 
+import static org.eclipse.che.ide.api.notification.StatusNotification.DisplayMode.FLOAT_MODE;
 import static org.eclipse.che.ide.api.notification.StatusNotification.Status.FAIL;
 import static org.eclipse.che.ide.ext.java.shared.dto.refactoring.CreateRenameRefactoring.RenameType.COMPILATION_UNIT;
 import static org.eclipse.che.ide.ext.java.shared.dto.refactoring.CreateRenameRefactoring.RenameType.JAVA_ELEMENT;
 import static org.eclipse.che.ide.ext.java.shared.dto.refactoring.CreateRenameRefactoring.RenameType.PACKAGE;
+import static org.eclipse.che.ide.ext.java.shared.dto.refactoring.RefactoringStatus.ERROR;
+import static org.eclipse.che.ide.ext.java.shared.dto.refactoring.RefactoringStatus.FATAL;
 import static org.eclipse.che.ide.ext.java.shared.dto.refactoring.RefactoringStatus.INFO;
 import static org.eclipse.che.ide.ext.java.shared.dto.refactoring.RefactoringStatus.OK;
+import static org.eclipse.che.ide.ext.java.shared.dto.refactoring.RefactoringStatus.WARNING;
 
 /**
  * The class that manages Move panel widget.
@@ -124,7 +128,7 @@ public class RenamePresenter implements ActionDelegate {
         }).catchError(new Operation<PromiseError>() {
             @Override
             public void apply(PromiseError arg) throws OperationException {
-                notificationManager.notify(locale.failedToRename(), arg.getMessage(), FAIL, true);
+                notificationManager.notify(locale.failedToRename(), arg.getMessage(), FAIL, FLOAT_MODE);
             }
         });
     }
@@ -238,7 +242,7 @@ public class RenamePresenter implements ActionDelegate {
         }).catchError(new Operation<PromiseError>() {
             @Override
             public void apply(PromiseError arg) throws OperationException {
-                notificationManager.notify(locale.failedToRename(), arg.getMessage(), FAIL, true);
+                notificationManager.notify(locale.failedToRename(), arg.getMessage(), FAIL, FLOAT_MODE);
             }
         });
     }
@@ -273,7 +277,7 @@ public class RenamePresenter implements ActionDelegate {
         }).catchError(new Operation<PromiseError>() {
             @Override
             public void apply(PromiseError arg) throws OperationException {
-                notificationManager.notify(locale.failedToRename(), arg.getMessage(), FAIL, true);
+                notificationManager.notify(locale.failedToRename(), arg.getMessage(), FAIL, FLOAT_MODE);
             }
         });
     }
@@ -288,11 +292,11 @@ public class RenamePresenter implements ActionDelegate {
                 int severityCode = arg.getStatus().getSeverity();
 
                 switch (severityCode) {
-                    case 2:
-                    case 3:
+                    case WARNING:
+                    case ERROR:
                         showWarningDialog(session, arg);
                         break;
-                    case 4:
+                    case FATAL:
                         if (!arg.isCanShowPreviewPage()) {
                             view.showErrorMessage(arg.getStatus());
                         }
@@ -304,7 +308,7 @@ public class RenamePresenter implements ActionDelegate {
         }).catchError(new Operation<PromiseError>() {
             @Override
             public void apply(PromiseError arg) throws OperationException {
-                notificationManager.notify(locale.failedToRename(), arg.getMessage(), FAIL, true);
+                notificationManager.notify(locale.failedToRename(), arg.getMessage(), FAIL, FLOAT_MODE);
             }
         });
     }

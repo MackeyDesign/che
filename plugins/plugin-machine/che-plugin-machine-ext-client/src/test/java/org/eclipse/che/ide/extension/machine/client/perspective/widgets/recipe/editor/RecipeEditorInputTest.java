@@ -10,11 +10,10 @@
  *******************************************************************************/
 package org.eclipse.che.ide.extension.machine.client.perspective.widgets.recipe.editor;
 
-import com.google.gwt.resources.client.ImageResource;
 import com.google.gwtmockito.GwtMockitoTestRunner;
 
 import org.eclipse.che.ide.api.filetypes.FileType;
-import org.eclipse.che.ide.api.project.tree.VirtualFile;
+import org.eclipse.che.ide.api.resources.VirtualFile;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -43,8 +42,6 @@ public class RecipeEditorInputTest {
     private VirtualFile file;
 
     @Mock
-    private ImageResource image;
-    @Mock
     private SVGResource   svgImage;
 
     @InjectMocks
@@ -52,17 +49,8 @@ public class RecipeEditorInputTest {
 
     @Before
     public void setUp() {
-        when(fileType.getContentDescription()).thenReturn(TEXT);
         when(file.getDisplayName()).thenReturn(TEXT);
-        when(fileType.getImage()).thenReturn(image);
-        when(fileType.getSVGImage()).thenReturn(svgImage);
-    }
-
-    @Test
-    public void contentDescriptionShouldBeReturned() {
-        assertThat(recipeEditorInput.getContentDescription(), is(TEXT));
-
-        verify(fileType).getContentDescription();
+        when(fileType.getImage()).thenReturn(svgImage);
     }
 
     @Test
@@ -78,17 +66,10 @@ public class RecipeEditorInputTest {
     }
 
     @Test
-    public void imageResourcesShouldBeReturned() {
-        assertThat(recipeEditorInput.getImageResource(), is(image));
-
-        verify(fileType).getImage();
-    }
-
-    @Test
     public void svgResourcesShouldBeReturned() {
         assertThat(recipeEditorInput.getSVGResource(), is(svgImage));
 
-        verify(fileType).getSVGImage();
+        verify(fileType).getImage();
     }
 
     @Test

@@ -14,9 +14,9 @@ import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.google.web.bindery.event.shared.EventBus;
 
-import org.eclipse.che.api.git.gwt.client.GitServiceClient;
+import org.eclipse.che.ide.api.git.GitServiceClient;
 import org.eclipse.che.api.git.shared.ShowFileContentResponse;
-import org.eclipse.che.api.project.gwt.client.ProjectServiceClient;
+import org.eclipse.che.ide.api.project.ProjectServiceClient;
 import org.eclipse.che.ide.api.app.AppContext;
 import org.eclipse.che.ide.api.event.FileContentUpdateEvent;
 import org.eclipse.che.ide.api.notification.NotificationManager;
@@ -25,10 +25,11 @@ import org.eclipse.che.ide.ext.git.client.compare.FileStatus.Status;
 import org.eclipse.che.ide.rest.AsyncRequestCallback;
 import org.eclipse.che.ide.rest.DtoUnmarshallerFactory;
 import org.eclipse.che.ide.rest.StringUnmarshaller;
-import org.eclipse.che.ide.ui.dialogs.CancelCallback;
-import org.eclipse.che.ide.ui.dialogs.ConfirmCallback;
-import org.eclipse.che.ide.ui.dialogs.DialogFactory;
+import org.eclipse.che.ide.api.dialogs.CancelCallback;
+import org.eclipse.che.ide.api.dialogs.ConfirmCallback;
+import org.eclipse.che.ide.api.dialogs.DialogFactory;
 
+import static org.eclipse.che.ide.api.notification.StatusNotification.DisplayMode.NOT_EMERGE_MODE;
 import static org.eclipse.che.ide.api.notification.StatusNotification.Status.FAIL;
 import static org.eclipse.che.ide.ext.git.client.compare.FileStatus.Status.ADDED;
 import static org.eclipse.che.ide.ext.git.client.compare.FileStatus.Status.DELETED;
@@ -103,7 +104,7 @@ public class ComparePresenter implements CompareView.ActionDelegate {
 
                                            @Override
                                            protected void onFailure(Throwable exception) {
-                                               notificationManager.notify(exception.getMessage(), FAIL, false);
+                                               notificationManager.notify(exception.getMessage(), FAIL, NOT_EMERGE_MODE);
                                            }
                                        });
         } else {
@@ -117,7 +118,7 @@ public class ComparePresenter implements CompareView.ActionDelegate {
 
                                            @Override
                                            protected void onFailure(Throwable exception) {
-                                               notificationManager.notify(exception.getMessage(), FAIL, false);
+                                               notificationManager.notify(exception.getMessage(), FAIL, NOT_EMERGE_MODE);
                                            }
                                        });
         }
@@ -143,7 +144,7 @@ public class ComparePresenter implements CompareView.ActionDelegate {
 
                     @Override
                     protected void onFailure(Throwable exception) {
-                        notificationManager.notify(exception.getMessage(), FAIL, false);
+                        notificationManager.notify(exception.getMessage(), FAIL, NOT_EMERGE_MODE);
                     }
                 });
                 view.hide();
@@ -176,7 +177,7 @@ public class ComparePresenter implements CompareView.ActionDelegate {
 
                                           @Override
                                           protected void onFailure(Throwable exception) {
-                                              notificationManager.notify(exception.getMessage(), FAIL, false);
+                                              notificationManager.notify(exception.getMessage(), FAIL, NOT_EMERGE_MODE);
                                           }
                                       });
     }

@@ -21,7 +21,7 @@ import org.eclipse.che.ide.api.editor.EditorPartPresenter;
 import org.eclipse.che.ide.api.filetypes.FileType;
 import org.eclipse.che.ide.api.filetypes.FileTypeRegistry;
 import org.eclipse.che.ide.api.parts.PartStackUIResources;
-import org.eclipse.che.ide.api.project.tree.VirtualFile;
+import org.eclipse.che.ide.api.resources.VirtualFile;
 import org.eclipse.che.ide.part.editor.EditorTabContextMenuFactory;
 import org.eclipse.che.ide.part.widgets.editortab.EditorTab.ActionDelegate;
 import org.junit.Before;
@@ -152,7 +152,7 @@ public class EditorTabWidgetTest {
 
         when(editorPartPresenter.getEditorInput()).thenReturn(editorInput);
         when(fileTypeRegistry.getFileTypeByFile(file)).thenReturn(fileType);
-        when(fileType.getSVGImage()).thenReturn(icon);
+        when(fileType.getImage()).thenReturn(icon);
         when(editorInput.getFile()).thenReturn(file);
 
         tab.update(editorPartPresenter);

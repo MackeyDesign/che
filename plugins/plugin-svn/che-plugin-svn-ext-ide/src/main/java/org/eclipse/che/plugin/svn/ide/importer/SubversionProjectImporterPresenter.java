@@ -35,7 +35,8 @@ public class SubversionProjectImporterPresenter extends AbstractWizardPage<Proje
 
     // start with white space
     private static final RegExp SUBVERSION_REPOSITORY_REGEX =
-            RegExp.compile("^(http|https|svn|svn\\+ssh)://[A-Za-z0-9_\\-]+(\\.[A-Za-z0-9_\\-:]+)+(/[A-Za-z0-9_.\\-]+)*/?$");
+            RegExp.compile(
+                    "^(http|https|svn|svn\\+ssh)://[A-Za-z0-9_\\-]+@?[A-Za-z0-9_\\-]+(\\.[A-Za-z0-9_\\-:]+)+(/[A-Za-z0-9_.\\-]+)*/?$");
 
     private final SubversionExtensionLocalizationConstants constants;
     private final SubversionProjectImporterView            view;
@@ -147,10 +148,7 @@ public class SubversionProjectImporterPresenter extends AbstractWizardPage<Proje
     }
 
     private boolean isSubversionUrlCorrect(final String url) {
-        if (isNullOrEmpty(url)) {
-            return false;
-        }
-        return SUBVERSION_REPOSITORY_REGEX.test(url);
+        return !isNullOrEmpty(url) && SUBVERSION_REPOSITORY_REGEX.test(url);
     }
 
     private String getUrl(String url, String relPath) {

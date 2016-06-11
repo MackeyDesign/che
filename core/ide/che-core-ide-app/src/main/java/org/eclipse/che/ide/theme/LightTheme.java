@@ -743,6 +743,36 @@ public class LightTheme implements Theme {
     }
 
     @Override
+    public String consolesToolbarBackground() {
+        return "#D6D6D9";
+    }
+
+    @Override
+    public String colsolesToolbarBorderColor() {
+        return "#8e8e8e";
+    }
+
+    @Override
+    public String consolesToolbarButtonColor() {
+        return "#aaaaaa";
+    }
+
+    @Override
+    public String consolesToolbarHoveredButtonColor() {
+        return "#e0e0e0";
+    }
+
+    @Override
+    public String consolesToolbarDisabledButtonColor() {
+        return "#777777";
+    }
+
+    @Override
+    public String consolesToolbarToggledButtonColor() {
+        return "rgba(0, 0, 0, 0.6)";
+    }
+
+    @Override
     public String processTreeDevLabel() {
         return "white";
     }
@@ -1440,5 +1470,10 @@ public class LightTheme implements Theme {
     @Override
     public String vcsConsoleChangesLineNumbersColor() {
         return "#66CCFF";
+    }
+
+    @Override
+    public String editorPreferenceCategoryBackgroundColor() {
+        return "rgba(27, 27, 27, 0.10)";
     }
 }

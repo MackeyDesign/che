@@ -19,19 +19,19 @@ import org.eclipse.che.api.promises.client.OperationException;
 import org.eclipse.che.api.promises.client.Promise;
 import org.eclipse.che.api.promises.client.PromiseError;
 import org.eclipse.che.api.promises.client.callback.AsyncPromiseHelper;
-import org.eclipse.che.api.ssh.gwt.client.SshServiceClient;
 import org.eclipse.che.api.ssh.shared.dto.SshPairDto;
 import org.eclipse.che.ide.api.app.AppContext;
+import org.eclipse.che.ide.api.dialogs.DialogFactory;
 import org.eclipse.che.ide.api.notification.NotificationManager;
 import org.eclipse.che.ide.api.oauth.OAuth2Authenticator;
 import org.eclipse.che.ide.api.oauth.OAuth2AuthenticatorUrlProvider;
-import org.eclipse.che.plugin.github.ide.GitHubLocalizationConstant;
-import org.eclipse.che.ide.ext.git.ssh.client.GitSshKeyUploaderRegistry;
-import org.eclipse.che.ide.ext.git.ssh.client.SshKeyUploader;
-import org.eclipse.che.ide.ext.git.ssh.client.manage.SshKeyManagerPresenter;
+import org.eclipse.che.ide.api.ssh.SshServiceClient;
 import org.eclipse.che.ide.rest.RestContext;
-import org.eclipse.che.ide.ui.dialogs.DialogFactory;
 import org.eclipse.che.ide.util.loging.Log;
+import org.eclipse.che.plugin.github.ide.GitHubLocalizationConstant;
+import org.eclipse.che.plugin.ssh.key.client.SshKeyUploaderRegistry;
+import org.eclipse.che.plugin.ssh.key.client.SshKeyUploader;
+import org.eclipse.che.plugin.ssh.key.client.manage.SshKeyManagerPresenter;
 import org.eclipse.che.security.oauth.JsOAuthWindow;
 import org.eclipse.che.security.oauth.OAuthCallback;
 import org.eclipse.che.security.oauth.OAuthStatus;
@@ -39,6 +39,7 @@ import org.eclipse.che.security.oauth.OAuthStatus;
 import javax.validation.constraints.NotNull;
 import java.util.List;
 
+import static org.eclipse.che.ide.api.notification.StatusNotification.DisplayMode.FLOAT_MODE;
 import static org.eclipse.che.ide.api.notification.StatusNotification.Status.SUCCESS;
 
 /**
@@ -50,7 +51,7 @@ public class GitHubAuthenticatorImpl implements OAuth2Authenticator, OAuthCallba
 
     AsyncCallback<OAuthStatus> callback;
 
-    private final GitSshKeyUploaderRegistry  registry;
+    private final SshKeyUploaderRegistry     registry;
     private final SshServiceClient           sshServiceClient;
     private final DialogFactory              dialogFactory;
     private final GitHubAuthenticatorView    view;
@@ -61,7 +62,7 @@ public class GitHubAuthenticatorImpl implements OAuth2Authenticator, OAuthCallba
     private       String                     authenticationUrl;
 
     @Inject
-    public GitHubAuthenticatorImpl(GitSshKeyUploaderRegistry registry,
+    public GitHubAuthenticatorImpl(SshKeyUploaderRegistry registry,
                                    SshServiceClient sshServiceClient,
                                    GitHubAuthenticatorView view,
                                    DialogFactory dialogFactory,
@@ -146,7 +147,7 @@ public class GitHubAuthenticatorImpl implements OAuth2Authenticator, OAuthCallba
                 @Override
                 public void onSuccess(Void result) {
                     callback.onSuccess(authStatus);
-                    notificationManager.notify(locale.authMessageKeyUploadSuccess(), SUCCESS, true);
+                    notificationManager.notify(locale.authMessageKeyUploadSuccess(), SUCCESS, FLOAT_MODE);
                 }
 
                 @Override
@@ -165,7 +166,7 @@ public class GitHubAuthenticatorImpl implements OAuth2Authenticator, OAuthCallba
 
     /** Need to remove failed uploaded pair from local storage if they can't be uploaded to github */
     private void getFailedKey() {
-        sshServiceClient.getPairs(SshKeyManagerPresenter.GIT_SSH_SERVICE)
+        sshServiceClient.getPairs(SshKeyManagerPresenter.VCS_SSH_SERVICE)
                         .then(new Operation<List<SshPairDto>>() {
                             @Override
                             public void apply(List<SshPairDto> result) throws OperationException {

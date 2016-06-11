@@ -16,7 +16,7 @@
     <parent>
         <artifactId>che-master-parent</artifactId>
         <groupId>org.eclipse.che.core</groupId>
-        <version>4.2.0-RC1-SNAPSHOT</version>
+        <version>4.3.0-RC2-SNAPSHOT</version>
     </parent>
     <artifactId>che-core-api-ssh</artifactId>
     <packaging>jar</packaging>
@@ -47,10 +47,6 @@
             <artifactId>swagger-annotations</artifactId>
         </dependency>
         <dependency>
-            <groupId>javax.annotation</groupId>
-            <artifactId>javax.annotation-api</artifactId>
-        </dependency>
-        <dependency>
             <groupId>javax.inject</groupId>
             <artifactId>javax.inject</artifactId>
         </dependency>
@@ -68,11 +64,11 @@
         </dependency>
         <dependency>
             <groupId>org.eclipse.che.core</groupId>
-            <artifactId>che-core-commons-annotations</artifactId>
+            <artifactId>che-core-api-ssh-shared</artifactId>
         </dependency>
         <dependency>
             <groupId>org.eclipse.che.core</groupId>
-            <artifactId>che-core-commons-env</artifactId>
+            <artifactId>che-core-commons-annotations</artifactId>
         </dependency>
         <dependency>
             <groupId>com.google.gwt</groupId>
@@ -195,7 +191,7 @@
                 <dependencies>
                     <dependency>
                         <groupId>org.eclipse.che.core</groupId>
-                        <artifactId>che-core-api-ssh</artifactId>
+                        <artifactId>che-core-api-ssh-shared</artifactId>
                         <version>${project.version}</version>
                     </dependency>
                 </dependencies>

@@ -131,4 +131,15 @@ public interface WorkspaceDao {
      *         when any other error occurs during workspaces fetching
      */
     List<WorkspaceImpl> getByNamespace(String namespace) throws ServerException;
+
+    /**
+     * Gets list of workspaces which user can read
+     *
+     * @param userId
+     *         id of user
+     * @return list of workspaces which user can read
+     * @throws ServerException
+     *         when any other error occurs during workspaces fetching
+     */
+    List<WorkspaceImpl> getWorkspaces(String userId) throws ServerException;
 }

@@ -13,7 +13,7 @@ package org.eclipse.che.ide.ext.java.client.dependenciesupdater;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 
-import org.eclipse.che.api.machine.gwt.client.WsAgentStateController;
+import org.eclipse.che.ide.api.machine.WsAgentStateController;
 import org.eclipse.che.api.promises.client.Operation;
 import org.eclipse.che.api.promises.client.OperationException;
 import org.eclipse.che.ide.api.app.AppContext;
@@ -45,7 +45,7 @@ public class JavaClasspathServiceClientImpl implements JavaClasspathServiceClien
     protected JavaClasspathServiceClientImpl(AppContext appContext,
                                              WsAgentStateController wsAgentStateController) {
         this.wsAgentStateController = wsAgentStateController;
-        this.baseHttpUrl = "/jdt/" + appContext.getWorkspace().getId();
+        this.baseHttpUrl = "/java/";
     }
 
     /** {@inheritDoc} */

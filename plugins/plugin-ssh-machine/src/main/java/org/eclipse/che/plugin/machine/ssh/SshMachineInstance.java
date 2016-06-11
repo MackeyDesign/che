@@ -15,13 +15,13 @@ import com.google.inject.assistedinject.Assisted;
 import org.eclipse.che.api.core.NotFoundException;
 import org.eclipse.che.api.core.model.machine.Command;
 import org.eclipse.che.api.core.model.machine.Machine;
+import org.eclipse.che.api.core.model.machine.MachineSource;
 import org.eclipse.che.api.core.model.machine.ServerConf;
 import org.eclipse.che.api.core.util.LineConsumer;
 import org.eclipse.che.api.machine.server.exception.MachineException;
 import org.eclipse.che.api.machine.server.model.impl.MachineRuntimeInfoImpl;
 import org.eclipse.che.api.machine.server.model.impl.ServerImpl;
 import org.eclipse.che.api.machine.server.spi.Instance;
-import org.eclipse.che.api.machine.server.spi.InstanceKey;
 import org.eclipse.che.api.machine.server.spi.InstanceNode;
 import org.eclipse.che.api.machine.server.spi.InstanceProcess;
 import org.eclipse.che.api.machine.server.spi.impl.AbstractInstance;
@@ -29,6 +29,7 @@ import org.eclipse.che.api.machine.server.spi.impl.AbstractInstance;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.ws.rs.core.UriBuilder;
+import java.io.IOException;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.List;
@@ -140,12 +141,17 @@ public class SshMachineInstance extends AbstractInstance {
      * {@inheritDoc}
      */
     @Override
-    public InstanceKey saveToSnapshot(String owner) throws MachineException {
+    public MachineSource saveToSnapshot(String owner) throws MachineException {
         throw new MachineException("Snapshot feature is unsupported for ssh machine implementation");
     }
 
     @Override
     public void destroy() throws MachineException {
+        try {
+            outputConsumer.close();
+        } catch (IOException ignored) {
+        }
+
         // session destroying stops all processes
         // todo kill all processes started by code, we should get parent pid of session and kill all children
         sshClient.stop();

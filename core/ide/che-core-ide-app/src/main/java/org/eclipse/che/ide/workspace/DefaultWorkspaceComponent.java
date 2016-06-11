@@ -17,11 +17,11 @@ import com.google.inject.Provider;
 import com.google.inject.Singleton;
 import com.google.web.bindery.event.shared.EventBus;
 
-import org.eclipse.che.api.machine.gwt.client.MachineManager;
+import org.eclipse.che.ide.api.machine.MachineManager;
 import org.eclipse.che.api.promises.client.Operation;
 import org.eclipse.che.api.promises.client.OperationException;
 import org.eclipse.che.api.promises.client.PromiseError;
-import org.eclipse.che.api.workspace.gwt.client.WorkspaceServiceClient;
+import org.eclipse.che.ide.api.workspace.WorkspaceServiceClient;
 import org.eclipse.che.api.workspace.shared.dto.WorkspaceDto;
 import org.eclipse.che.ide.CoreLocalizationConstant;
 import org.eclipse.che.ide.actions.WorkspaceSnapshotCreator;
@@ -32,7 +32,7 @@ import org.eclipse.che.ide.api.component.Component;
 import org.eclipse.che.ide.dto.DtoFactory;
 import org.eclipse.che.ide.rest.DtoUnmarshallerFactory;
 import org.eclipse.che.ide.statepersistance.dto.AppState;
-import org.eclipse.che.ide.ui.dialogs.DialogFactory;
+import org.eclipse.che.ide.api.dialogs.DialogFactory;
 import org.eclipse.che.ide.ui.loaders.initialization.InitialLoadingInfo;
 import org.eclipse.che.ide.ui.loaders.initialization.LoaderPresenter;
 import org.eclipse.che.ide.util.loging.Log;
@@ -97,28 +97,14 @@ public class DefaultWorkspaceComponent extends WorkspaceComponent implements Com
     public void start(final Callback<Component, Exception> callback) {
         this.callback = callback;
 
-        workspaceServiceClient.getWorkspaces(SKIP_COUNT, MAX_COUNT).then(new Operation<List<WorkspaceDto>>() {
-            @Override
-            public void apply(List<WorkspaceDto> workspaces) throws OperationException {
-                if (workspaces.isEmpty()) {
-                    createWorkspacePresenter.show(workspaces, callback);
-                } else {
-                    String wsNameFromBrowser = browserQueryFieldRenderer.getWorkspaceName();
-                    if (wsNameFromBrowser.isEmpty()) {
-                        tryStartRecentWorkspaceIfExist(workspaces);
-                    } else {
-                        for (WorkspaceDto workspace : workspaces) {
-                            if (wsNameFromBrowser.equals(workspace.getConfig().getName())) {
-                                Log.info(getClass(), "Starting workspace " + workspace.getConfig().getName());
-                                startWorkspaceById(workspace, callback);
-                                return;
-                            }
-                        }
+        workspaceServiceClient.getWorkspace(browserQueryFieldRenderer.getNamespace(), browserQueryFieldRenderer.getWorkspaceName()).then(
+                new Operation<WorkspaceDto>() {
+                    @Override
+                    public void apply(WorkspaceDto workspace) throws OperationException {
+                        startWorkspaceById(workspace, callback);
+                        return;
                     }
-                    createWorkspacePresenter.show(workspaces, callback);
-                }
-            }
-        }).catchError(new Operation<PromiseError>() {
+                }).catchError(new Operation<PromiseError>() {
             @Override
             public void apply(PromiseError error) throws OperationException {
                 needToReloadComponents = true;

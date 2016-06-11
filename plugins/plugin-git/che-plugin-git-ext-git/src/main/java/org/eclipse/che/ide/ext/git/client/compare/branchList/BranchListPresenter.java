@@ -13,7 +13,7 @@ package org.eclipse.che.ide.ext.git.client.compare.branchList;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 
-import org.eclipse.che.api.git.gwt.client.GitServiceClient;
+import org.eclipse.che.ide.api.git.GitServiceClient;
 import org.eclipse.che.api.git.shared.Branch;
 import org.eclipse.che.api.workspace.shared.dto.ProjectConfigDto;
 import org.eclipse.che.ide.api.app.AppContext;
@@ -33,8 +33,8 @@ import org.eclipse.che.ide.project.node.ResourceBasedNode;
 import org.eclipse.che.ide.rest.AsyncRequestCallback;
 import org.eclipse.che.ide.rest.DtoUnmarshallerFactory;
 import org.eclipse.che.ide.rest.StringUnmarshaller;
-import org.eclipse.che.ide.ui.dialogs.ConfirmCallback;
-import org.eclipse.che.ide.ui.dialogs.DialogFactory;
+import org.eclipse.che.ide.api.dialogs.ConfirmCallback;
+import org.eclipse.che.ide.api.dialogs.DialogFactory;
 
 import javax.validation.constraints.NotNull;
 import java.util.Collections;
@@ -44,6 +44,7 @@ import java.util.Map;
 
 import static org.eclipse.che.api.git.shared.BranchListRequest.LIST_ALL;
 import static org.eclipse.che.api.git.shared.DiffRequest.DiffType.NAME_STATUS;
+import static org.eclipse.che.ide.api.notification.StatusNotification.DisplayMode.NOT_EMERGE_MODE;
 import static org.eclipse.che.ide.api.notification.StatusNotification.Status.FAIL;
 import static org.eclipse.che.ide.ext.git.client.compare.FileStatus.defineStatus;
 
@@ -130,7 +131,8 @@ public class BranchListPresenter implements BranchListView.ActionDelegate {
         pattern = path.replaceFirst(project.getPath(), "");
         pattern = (pattern.startsWith("/")) ? pattern.replaceFirst("/", "") : pattern;
 
-        gitService.diff(appContext.getDevMachine(), project, Collections.singletonList(pattern), NAME_STATUS, false, 0, selectedBranch.getName(), false,
+        gitService.diff(appContext.getDevMachine(), project, pattern.isEmpty() ? null : Collections.singletonList(pattern),
+                        NAME_STATUS, false, 0, selectedBranch.getName(), false,
                         new AsyncRequestCallback<String>(new StringUnmarshaller()) {
                             @Override
                             protected void onSuccess(String result) {
@@ -159,7 +161,7 @@ public class BranchListPresenter implements BranchListView.ActionDelegate {
 
                             @Override
                             protected void onFailure(Throwable exception) {
-                                notificationManager.notify(locale.diffFailed(), FAIL, false);
+                                notificationManager.notify(locale.diffFailed(), FAIL, NOT_EMERGE_MODE);
                             }
                         });
         view.close();
@@ -197,7 +199,7 @@ public class BranchListPresenter implements BranchListView.ActionDelegate {
                                       GitOutputConsole console = gitOutputConsoleFactory.create(BRANCH_LIST_COMMAND_NAME);
                                       console.printError(errorMessage);
                                       consolesPanelPresenter.addCommandOutput(appContext.getDevMachine().getId(), console);
-                                      notificationManager.notify(locale.branchesListFailed(), FAIL, false);
+                                      notificationManager.notify(locale.branchesListFailed(), FAIL, NOT_EMERGE_MODE);
                                   }
                               }
                              );

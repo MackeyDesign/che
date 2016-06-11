@@ -22,7 +22,7 @@ import org.eclipse.che.ide.api.editor.EditorWithAutoSave;
 import org.eclipse.che.ide.api.event.FileEvent;
 import org.eclipse.che.ide.api.notification.NotificationManager;
 import org.eclipse.che.ide.api.project.node.HasProjectConfig;
-import org.eclipse.che.ide.api.project.tree.VirtualFile;
+import org.eclipse.che.ide.api.resources.VirtualFile;
 import org.eclipse.che.ide.dto.DtoFactory;
 import org.eclipse.che.ide.ext.java.client.JavaLocalizationConstant;
 import org.eclipse.che.ide.ext.java.client.refactoring.RefactorInfo;
@@ -36,19 +36,19 @@ import org.eclipse.che.ide.ext.java.shared.dto.refactoring.LinkedRenameRefactori
 import org.eclipse.che.ide.ext.java.shared.dto.refactoring.RefactoringResult;
 import org.eclipse.che.ide.ext.java.shared.dto.refactoring.RefactoringStatusEntry;
 import org.eclipse.che.ide.ext.java.shared.dto.refactoring.RenameRefactoringSession;
-import org.eclipse.che.ide.jseditor.client.document.Document;
-import org.eclipse.che.ide.jseditor.client.link.HasLinkedMode;
-import org.eclipse.che.ide.jseditor.client.link.LinkedMode;
-import org.eclipse.che.ide.jseditor.client.link.LinkedModel;
-import org.eclipse.che.ide.jseditor.client.texteditor.TextEditor;
+import org.eclipse.che.ide.api.editor.document.Document;
+import org.eclipse.che.ide.api.editor.link.HasLinkedMode;
+import org.eclipse.che.ide.api.editor.link.LinkedMode;
+import org.eclipse.che.ide.api.editor.link.LinkedModel;
+import org.eclipse.che.ide.api.editor.texteditor.TextEditor;
 import org.eclipse.che.ide.rest.DtoUnmarshallerFactory;
-import org.eclipse.che.ide.ui.dialogs.CancelCallback;
-import org.eclipse.che.ide.ui.dialogs.ConfirmCallback;
-import org.eclipse.che.ide.ui.dialogs.DialogFactory;
-import org.eclipse.che.ide.ui.dialogs.InputCallback;
-import org.eclipse.che.ide.ui.dialogs.confirm.ConfirmDialog;
-import org.eclipse.che.ide.ui.dialogs.input.InputDialog;
-import org.eclipse.che.ide.ui.dialogs.message.MessageDialog;
+import org.eclipse.che.ide.api.dialogs.CancelCallback;
+import org.eclipse.che.ide.api.dialogs.ConfirmCallback;
+import org.eclipse.che.ide.api.dialogs.DialogFactory;
+import org.eclipse.che.ide.api.dialogs.InputCallback;
+import org.eclipse.che.ide.api.dialogs.ConfirmDialog;
+import org.eclipse.che.ide.api.dialogs.InputDialog;
+import org.eclipse.che.ide.api.dialogs.MessageDialog;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -270,12 +270,41 @@ public class JavaRefactoringRenameTest {
 
     @Test
     public void renameRefactoringShouldBeFailedByError() throws OperationException {
+        ConfirmDialog confirmDialog = mock(ConfirmDialog.class);
         when(result.getSeverity()).thenReturn(ERROR);
+
+        when(dialogFactory.createConfirmDialog(anyString(),
+                                               anyString(),
+                                               anyString(),
+                                               anyString(),
+                                               Matchers.<ConfirmCallback>anyObject(),
+                                               Matchers.<CancelCallback>anyObject())).thenReturn(confirmDialog);
 
         refactoringRename.refactor(textEditor);
 
-        mainCheckRenameRefactoring();
-        verify(result, times(1)).getSeverity();
+        verify(refactoringServiceClient).createRenameRefactoring(createRenameRefactoringDto);
+        verify(createRenamePromise).then(renameRefCaptor.capture());
+        renameRefCaptor.getValue().apply(session);
+
+        verify(linkedMode).addListener(inputArgumentCaptor.capture());
+        inputArgumentCaptor.getValue().onLinkedModeExited(true, 0, 1);
+
+        verify(refactoringServiceClient).applyLinkedModeRename(linkedRenameRefactoringApplyDto);
+
+        verify(applyModelPromise).then(refactoringStatusCaptor.capture());
+        refactoringStatusCaptor.getValue().apply(result);
+
+        verify(locale).warningOperationTitle();
+        verify(locale).renameWithWarnings();
+        verify(locale).showRenameWizard();
+        verify(locale).buttonCancel();
+        verify(dialogFactory).createConfirmDialog(anyString(),
+                                                  anyString(),
+                                                  anyString(),
+                                                  anyString(),
+                                                  Matchers.<ConfirmCallback>anyObject(),
+                                                  Matchers.<CancelCallback>anyObject());
+        verify(confirmDialog).show();
     }
 
     @Test
@@ -324,7 +353,17 @@ public class JavaRefactoringRenameTest {
         refactoringRename.refactor(textEditor);
 
         mainCheckRenameRefactoring();
-        verify(result, times(2)).getSeverity();
+        verify(result).getSeverity();
+    }
+
+    @Test
+    public void renameRefactoringShouldBeWithOK() throws OperationException {
+        when(result.getSeverity()).thenReturn(OK);
+
+        refactoringRename.refactor(textEditor);
+
+        mainCheckRenameRefactoring();
+        verify(result).getSeverity();
     }
 
     private void mainCheckRenameRefactoring() throws OperationException {

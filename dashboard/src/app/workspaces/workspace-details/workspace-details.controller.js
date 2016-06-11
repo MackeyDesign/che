@@ -20,7 +20,7 @@ export class WorkspaceDetailsCtrl {
    * Default constructor that is using resource injection
    * @ngInject for Dependency injection
    */
-  constructor($rootScope, $route, $location, cheWorkspace, $mdDialog, cheNotification, ideSvc, $log) {
+  constructor($rootScope, $route, $location, cheWorkspace, $mdDialog, cheNotification, ideSvc, $log, workspaceDetailsService) {
     this.$rootScope = $rootScope;
     this.cheNotification = cheNotification;
     this.cheWorkspace = cheWorkspace;
@@ -28,6 +28,7 @@ export class WorkspaceDetailsCtrl {
     this.$location = $location;
     this.ideSvc = ideSvc;
     this.$log = $log;
+    this.workspaceDetailsService = workspaceDetailsService;
 
     this.workspaceDetails = {};
     this.workspaceId = $route.current.params.workspaceId;
@@ -52,6 +53,16 @@ export class WorkspaceDetailsCtrl {
 
     // show link 'Show more' if true
     this.showShowMore = false;
+
+    this.cheWorkspace.fetchWorkspaces();
+  }
+
+  /**
+   * Returns workspace details sections (tabs, example - projects)
+   * @returns {*}
+   */
+  getSections() {
+    return this.workspaceDetailsService.getSections();
   }
 
   //Update the workspace data to be displayed.
@@ -105,15 +116,14 @@ export class WorkspaceDetailsCtrl {
       .clickOutsideToClose(true)
       .targetEvent(event);
     this.$mdDialog.show(confirm).then(() => {
-      let stoppedStatusPromise = this.cheWorkspace.fetchStatusChange(this.workspaceId, 'STOPPED');
-
-      if (this.workspaceDetails.status === 'RUNNING') {
-        this.cheWorkspace.stopWorkspace(this.workspaceId);
-      }
-
-      stoppedStatusPromise.then(() => {
+      if (this.workspaceDetails.status === 'STOPPED' || this.workspaceDetails.status === 'ERROR') {
         this.removeWorkspace();
-      });
+      } else if (this.workspaceDetails.status === 'RUNNING') {
+        this.cheWorkspace.stopWorkspace(this.workspaceId);
+        this.cheWorkspace.fetchStatusChange(this.workspaceId, 'STOPPED').then(() => {
+          this.removeWorkspace();
+        });
+      }
     });
   }
 
@@ -132,18 +142,20 @@ export class WorkspaceDetailsCtrl {
 
   runWorkspace() {
     this.showShowMore = true;
+    delete this.errorMessage;
 
     this.ideSvc.init();
-    this.ideSvc.setSelectedWorkspace(this.workspaceDetails);
     this.$rootScope.loadingIDE = false;
-    let promise = this.ideSvc.startIde(true);
+    let promise = this.ideSvc.startIde(this.workspaceDetails, true);
     promise.then(() => {
       this.showShowMore = false;
     }, (error) => {
         let errorMessage;
 
-        if (!error || !error.data) {
-            errorMessage = 'Unable to start this workspace.';
+        if (!error || !(error.data || error.error)) {
+          errorMessage = 'Unable to start this workspace.';
+        } else if (error.error) {
+            errorMessage = error.error;
         } else if (error.data.errorCode === 10000 && error.data.attributes) {
             let attributes = error.data.attributes;
 
@@ -160,6 +172,8 @@ export class WorkspaceDetailsCtrl {
 
       this.cheNotification.showError(errorMessage);
       this.$log.error(error);
+
+      this.errorMessage = errorMessage;
     });
   }
 
