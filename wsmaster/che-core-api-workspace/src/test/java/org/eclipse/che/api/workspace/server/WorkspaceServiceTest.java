@@ -16,12 +16,14 @@ import com.google.common.collect.Sets;
 import com.jayway.restassured.response.Response;
 
 import org.eclipse.che.api.core.model.machine.MachineStatus;
+import org.eclipse.che.api.core.model.project.ProjectConfig;
 import org.eclipse.che.api.core.model.workspace.WorkspaceConfig;
 import org.eclipse.che.api.core.model.workspace.WorkspaceStatus;
 import org.eclipse.che.api.core.rest.ApiExceptionMapper;
 import org.eclipse.che.api.core.rest.shared.dto.Link;
 import org.eclipse.che.api.core.rest.shared.dto.ServiceError;
 import org.eclipse.che.api.machine.server.MachineManager;
+import org.eclipse.che.api.machine.server.MachineServiceLinksInjector;
 import org.eclipse.che.api.machine.server.model.impl.CommandImpl;
 import org.eclipse.che.api.machine.server.model.impl.MachineConfigImpl;
 import org.eclipse.che.api.machine.server.model.impl.MachineImpl;
@@ -32,7 +34,6 @@ import org.eclipse.che.api.machine.server.model.impl.ServerImpl;
 import org.eclipse.che.api.machine.server.model.impl.SnapshotImpl;
 import org.eclipse.che.api.machine.shared.dto.CommandDto;
 import org.eclipse.che.api.workspace.server.model.impl.EnvironmentImpl;
-import org.eclipse.che.api.workspace.server.model.impl.ProjectConfigImpl;
 import org.eclipse.che.api.workspace.server.model.impl.WorkspaceConfigImpl;
 import org.eclipse.che.api.workspace.server.model.impl.WorkspaceImpl;
 import org.eclipse.che.api.workspace.server.model.impl.WorkspaceRuntimeImpl;
@@ -42,7 +43,7 @@ import org.eclipse.che.api.workspace.shared.dto.SourceStorageDto;
 import org.eclipse.che.api.workspace.shared.dto.WorkspaceConfigDto;
 import org.eclipse.che.api.workspace.shared.dto.WorkspaceDto;
 import org.eclipse.che.commons.env.EnvironmentContext;
-import org.eclipse.che.commons.user.UserImpl;
+import org.eclipse.che.commons.subject.SubjectImpl;
 import org.eclipse.che.dto.server.DtoFactory;
 import org.everrest.assured.EverrestJetty;
 import org.everrest.core.Filter;
@@ -51,13 +52,13 @@ import org.everrest.core.RequestFilter;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.testng.MockitoTestNGListener;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Listeners;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
@@ -108,11 +109,11 @@ import static org.testng.Assert.assertTrue;
 public class WorkspaceServiceTest {
 
     @SuppressWarnings("unused")
-    private static final ApiExceptionMapper MAPPER  = new ApiExceptionMapper();
-    private static final String             USER_ID = "user123";
-    private static final LinkedList<String> ROLES   = new LinkedList<>(singleton("user"));
+    private static final ApiExceptionMapper MAPPER      = new ApiExceptionMapper();
+    private static final String             USER_ID     = "user123";
+    private static final String             IDE_CONTEXT = "ws";
     @SuppressWarnings("unused")
-    private static final EnvironmentFilter  FILTER  = new EnvironmentFilter();
+    private static final EnvironmentFilter  FILTER      = new EnvironmentFilter();
 
     @Mock
     private WorkspaceManager   wsManager;
@@ -122,6 +123,14 @@ public class WorkspaceServiceTest {
     private WorkspaceValidator validator;
     @InjectMocks
     private WorkspaceService   service;
+
+    @BeforeMethod
+    public void setup() {
+        service = new WorkspaceService(wsManager,
+                                       machineManager,
+                                       validator,
+                                       new WorkspaceServiceLinksInjector(IDE_CONTEXT, new MachineServiceLinksInjector()));
+    }
 
     @Test
     public void shouldCreateWorkspace() throws Exception {
@@ -595,7 +604,7 @@ public class WorkspaceServiceTest {
     public void shouldDeleteProject() throws Exception {
         final WorkspaceImpl workspace = createWorkspace(createConfigDto());
         when(wsManager.getWorkspace(workspace.getId())).thenReturn(workspace);
-        final ProjectConfigImpl firstProject = workspace.getConfig().getProjects().iterator().next();
+        final ProjectConfig firstProject = workspace.getConfig().getProjects().iterator().next();
 
         final Response response = given().auth()
                                          .basic(ADMIN_USER_NAME, ADMIN_USER_PASSWORD)
@@ -714,7 +723,7 @@ public class WorkspaceServiceTest {
                                                               .setDev(true)
                                                               .setName("dev-machine")
                                                               .setType("docker")
-                                                              .setSource(new MachineSourceImpl("location", "recipe"))
+                                                              .setSource(new MachineSourceImpl("location").setLocation("recipe"))
                                                               .setServers(asList(new ServerConfImpl("wsagent",
                                                                                                     "8080",
                                                                                                     "https",
@@ -743,7 +752,7 @@ public class WorkspaceServiceTest {
     public static class EnvironmentFilter implements RequestFilter {
 
         public void doFilter(GenericContainerRequest request) {
-            EnvironmentContext.getCurrent().setUser(new UserImpl("user", USER_ID, "token", ROLES, false));
+            EnvironmentContext.getCurrent().setSubject(new SubjectImpl("user", USER_ID, "token", false));
         }
     }
 }

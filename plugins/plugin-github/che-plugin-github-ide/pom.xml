@@ -16,7 +16,7 @@
     <parent>
         <artifactId>che-plugin-github-parent</artifactId>
         <groupId>org.eclipse.che.plugin</groupId>
-        <version>4.3.0-RC1-SNAPSHOT</version>
+        <version>4.3.0-RC2-SNAPSHOT</version>
     </parent>
     <artifactId>che-plugin-github-ide</artifactId>
     <packaging>jar</packaging>
@@ -79,11 +79,11 @@
         </dependency>
         <dependency>
             <groupId>org.eclipse.che.plugin</groupId>
-            <artifactId>che-plugin-git-ssh-client</artifactId>
+            <artifactId>che-plugin-github-shared</artifactId>
         </dependency>
         <dependency>
             <groupId>org.eclipse.che.plugin</groupId>
-            <artifactId>che-plugin-github-shared</artifactId>
+            <artifactId>che-plugin-ssh-key-ide</artifactId>
         </dependency>
         <dependency>
             <groupId>com.google.gwt</groupId>

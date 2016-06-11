@@ -24,8 +24,6 @@ export class CheHttpBackend {
     this.httpBackend = $httpBackend;
     this.projectsPerWorkspace = new Map();
     this.workspaces = new Map();
-    this.userIdMap = new Map();
-    this.userEmailMap = new Map();
     this.profilesMap = new Map();
     this.projectDetailsMap = new Map();
     this.remoteGitUrlArraysMap = new Map();
@@ -34,12 +32,8 @@ export class CheHttpBackend {
     this.projectTypesWorkspaces = new Map();
     this.workspaceAgentMap = new Map();
 
-    this.memberships = [];
-
-
-    this.defaultUser = cheAPIBuilder.getUserBuilder().withId('idDefaultUser').withEmail('eclipseChe@eclipse.org').build();
     this.defaultProfile = cheAPIBuilder.getProfileBuilder().withId('idDefaultUser').withEmail('eclipseChe@eclipse.org').withFirstName('FirstName').withLastName('LastName').build();
-    this.defaultProfilePrefs = {onBoardingFlowCompleted: 'true'};
+    this.defaultProfilePrefs = {};
     this.defaultBranding = {};
   }
 
@@ -62,30 +56,12 @@ export class CheHttpBackend {
 
     var projectTypeKeys = this.projectTypesWorkspaces.keys();
     for (let key of projectTypeKeys) {
-      this.httpBackend.when('GET', this.workspaceAgentMap.get(key) + '/project-type/' + key).respond(this.projectTypesWorkspaces.get(key));
+      this.httpBackend.when('GET', this.workspaceAgentMap.get(key) + '/project-type').respond(this.projectTypesWorkspaces.get(key));
     }
-
-    //memberships:
-    this.httpBackend.when('GET', '/api/account').respond(this.memberships);
-
-    //users
-    this.httpBackend.when('GET', '/api/user').respond(this.defaultUser);
-    var userIdKeys = this.userIdMap.keys();
-    for (let key of userIdKeys) {
-      this.httpBackend.when('GET', '/api/user/' + key).respond(this.userIdMap.get(key));
-    }
-    var userEmailKeys = this.userEmailMap.keys();
-    for (let key of userEmailKeys) {
-      this.httpBackend.when('GET', '/api/user/find?alias=' + key).respond(this.userEmailMap.get(key));
-    }
-
-    this.httpBackend.when('GET', '/api/user/inrole?role=admin&scope=system&scopeId=').respond(false);
-    this.httpBackend.when('GET', '/api/user/inrole?role=user&scope=system&scopeId=').respond(true);
 
     //profiles
     this.httpBackend.when('GET', '/api/profile').respond(this.defaultProfile);
     this.httpBackend.when('GET', '/api/profile/prefs').respond(this.defaultProfilePrefs);
-    var profileKeys = this.profilesMap.keys();
     var profileKeys = this.profilesMap.keys();
     for (let key of profileKeys) {
       this.httpBackend.when('GET', '/api/profile/' + key).respond(this.profilesMap.get(key));
@@ -95,7 +71,8 @@ export class CheHttpBackend {
     var projectDetailsKeys = this.projectDetailsMap.keys();
     for (let projectKey of projectDetailsKeys) {
       let workspaceKey = projectKey.split('/')[0];
-      this.httpBackend.when('GET', this.workspaceAgentMap.get(workspaceKey) + '/project/' + projectKey).respond(this.projectDetailsMap.get(projectKey));
+      let projectId = projectKey.split('/')[1];
+      this.httpBackend.when('GET', this.workspaceAgentMap.get(workspaceKey) + '/project/' + projectId).respond(this.projectDetailsMap.get(projectKey));
     }
 
     // branding
@@ -164,7 +141,7 @@ export class CheHttpBackend {
     );
 
     // add call to the backend
-    this.httpBackend.when('GET', this.workspaceAgentMap.get(workspace.id) + '/project/' + workspace.id).respond(this.projectsPerWorkspace.get(workspace.id));
+    this.httpBackend.when('GET', this.workspaceAgentMap.get(workspace.id) + '/project/').respond(this.projectsPerWorkspace.get(workspace.id));
 
   }
 
@@ -190,56 +167,6 @@ export class CheHttpBackend {
         }
       });
     }
-  }
-
-  /**
-   * Add the given user
-   * @param user
-   */
-  setDefaultUser(user) {
-    this.defaultUser = user;
-  }
-
-  /**
-   * Add the given user to userIdMap
-   * @param user
-   */
-  addUserId(user) {
-    this.userIdMap.set(user.id, user);
-  }
-
-  /**
-   * Add the given user to userEmailMap
-   * @param user
-   */
-  addUserEmail(user) {
-    this.userEmailMap.set(user.email, user);
-  }
-
-  /**
-   * Set new user password
-   */
-  setPassword() {
-    this.httpBackend.when('POST', '/api/user/password').respond(() => {
-      return [200, {success: true, errors: []}];
-    });
-  }
-
-  /**
-   * Create new user
-   */
-  createUser() {
-    this.httpBackend.when('POST', '/api/user/create').respond(() => {
-      return [200, {success: true, errors: []}];
-    });
-  }
-
-  /**
-   * Add membership of the current user
-   * @param membership
-   */
-  addMembership(membership) {
-    this.memberships.push(membership);
   }
 
   /**
@@ -308,7 +235,7 @@ export class CheHttpBackend {
    * @param projectName the project name
    */
   addFetchProjectDetails(workspaceId, projectName) {
-    this.httpBackend.when('GET', '/project/' + workspaceId + '/' + projectName)
+    this.httpBackend.when('GET', '/project/' + projectName)
       .respond(this.projectDetailsMap.get(workspaceId + '/' + projectName));
   }
 
@@ -319,7 +246,7 @@ export class CheHttpBackend {
    * @param newProjectName the new project name
    */
   addUpdatedProjectName(workspaceId, projectName, newProjectName) {
-    this.httpBackend.when('POST', '/project/' + workspaceId + '/rename/' + projectName + '?name=' + newProjectName).respond(newProjectName);
+    this.httpBackend.when('POST', '/project/rename/' + projectName + '?name=' + newProjectName).respond(newProjectName);
   }
 
   /**
@@ -358,7 +285,7 @@ export class CheHttpBackend {
    * @param projectPath
    */
   getLocalGitUrl(workspaceId, projectPath) {
-    this.httpBackend.when('GET', this.workspaceAgentMap.get(workspaceId) + '/git/' + workspaceId + '/read-only-url?projectPath=' + projectPath)
+    this.httpBackend.when('GET', this.workspaceAgentMap.get(workspaceId) + '/git/read-only-url?projectPath=' + projectPath)
       .respond(this.localGitUrlsMap.get(workspaceId + projectPath));
   }
 
@@ -368,7 +295,7 @@ export class CheHttpBackend {
    * @param projectPath
    */
   getRemoteGitUrlArray(workspaceId, projectPath) {
-    this.httpBackend.when('POST', this.workspaceAgentMap.get(workspaceId) + '/git/' + workspaceId + '/remote-list?projectPath=' + projectPath)
+    this.httpBackend.when('POST', this.workspaceAgentMap.get(workspaceId) + '/git/remote-list?projectPath=' + projectPath)
       .respond(this.remoteGitUrlArraysMap.get(workspaceId + projectPath));
   }
 

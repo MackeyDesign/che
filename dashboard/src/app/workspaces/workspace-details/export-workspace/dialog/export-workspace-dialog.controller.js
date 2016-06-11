@@ -153,18 +153,27 @@ export class ExportWorkspaceDialogController {
       });
 
 
-      //TODO when token for wsagent is ready - will need to use it instead of wsmaster one:
-      let agentAuthData = {url: wsAgentLink.href, token: authData.token};
-      let remoteProjectAPI = this.cheRemote.newProject(agentAuthData);
+      // grab token for machine
+      let tokenPromise = remoteWorkspaceAPI.getMachineToken(remoteWorkspace.id);
+      tokenPromise.then((machineTokenResult) => {
+        // ask with machine token
+        let agentAuthData = {url: wsAgentLink.href, token: machineTokenResult.machineToken};
+        let remoteProjectAPI = this.cheRemote.newProject(agentAuthData);
 
-      this.exportInCloudSteps += 'ok !<br>';
-      // ok now we've to import each project with a location into the remote workspace
-      let importProjectsPromise = this.importProjectsIntoWorkspace(remoteProjectAPI, remoteWorkspace);
-      importProjectsPromise.then(() => {
-        this.finishWorkspaceExporting(remoteWorkspace);
+        this.exportInCloudSteps += 'ok !<br>';
+        // ok now we've to import each project with a location into the remote workspace
+        let importProjectsPromise = this.importProjectsIntoWorkspace(remoteProjectAPI, remoteWorkspace);
+        importProjectsPromise.then(() => {
+          this.finishWorkspaceExporting(remoteWorkspace);
+        }, (error) => {
+          this.handleError(error);
+        })
       }, (error) => {
         this.handleError(error);
-      })
+      });
+
+
+
     }, (error) => {
       this.handleError(error);
     });
@@ -184,11 +193,11 @@ export class ExportWorkspaceDialogController {
         let deferred = this.$q.defer();
         let deferredPromise = deferred.promise;
         projectPromises.push(deferredPromise);
-        let importProjectPromise = remoteProjectAPI.importProject(workspace.id, project.name, project.source);
+        let importProjectPromise = remoteProjectAPI.importProject(project.name, project.source);
 
         importProjectPromise.then(() => {
           this.exportInCloudSteps += 'Importing project ' + project.name + '...<br>';
-          let updateProjectPromise = remoteProjectAPI.updateProject(workspace.id, project.name, project);
+          let updateProjectPromise = remoteProjectAPI.updateProject(project.name, project);
           updateProjectPromise.then(() => {
             deferred.resolve(workspace);
           }, (error) => {

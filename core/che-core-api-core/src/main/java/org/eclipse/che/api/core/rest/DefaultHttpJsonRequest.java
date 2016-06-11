@@ -22,7 +22,7 @@ import org.eclipse.che.api.core.rest.shared.dto.Link;
 import org.eclipse.che.api.core.rest.shared.dto.ServiceError;
 import org.eclipse.che.commons.env.EnvironmentContext;
 import org.eclipse.che.commons.lang.Pair;
-import org.eclipse.che.commons.user.User;
+import org.eclipse.che.commons.subject.Subject;
 import org.eclipse.che.dto.server.DtoFactory;
 import org.eclipse.che.dto.server.JsonArrayImpl;
 import org.eclipse.che.dto.server.JsonSerializable;
@@ -128,6 +128,17 @@ public class DefaultHttpJsonRequest implements HttpJsonRequest {
     public HttpJsonRequest setTimeout(int timeout) {
         this.timeout = timeout;
         return this;
+    }
+
+    @Override
+    public String getUrl() {
+        final UriBuilder ub = UriBuilder.fromUri(url);
+        if (queryParams != null) {
+            for (Pair<String, ?> parameter : queryParams) {
+                ub.queryParam(parameter.first, parameter.second);
+            }
+        }
+        return ub.build().toString();
     }
 
     @Override
@@ -279,9 +290,9 @@ public class DefaultHttpJsonRequest implements HttpJsonRequest {
     }
 
     private String getAuthenticationToken() {
-        final User user = EnvironmentContext.getCurrent().getUser();
-        if (user != null) {
-            return user.getToken();
+        final Subject subject = EnvironmentContext.getCurrent().getSubject();
+        if (subject != null) {
+            return subject.getToken();
         }
         return null;
     }

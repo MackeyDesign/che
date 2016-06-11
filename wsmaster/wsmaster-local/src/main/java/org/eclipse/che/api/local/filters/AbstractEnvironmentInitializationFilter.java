@@ -11,8 +11,8 @@
 package org.eclipse.che.api.local.filters;
 
 import org.eclipse.che.commons.env.EnvironmentContext;
-import org.eclipse.che.commons.user.User;
-import org.eclipse.che.commons.user.UserImpl;
+import org.eclipse.che.commons.subject.Subject;
+import org.eclipse.che.commons.subject.SubjectImpl;
 
 import javax.servlet.Filter;
 import javax.servlet.FilterChain;
@@ -25,9 +25,6 @@ import javax.servlet.http.HttpServletRequestWrapper;
 import javax.servlet.http.HttpSession;
 import java.io.IOException;
 import java.security.Principal;
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
 
 /**
  * The  class contains commons business logic for all environment workspace id initialization filters. The filters are necessary to set
@@ -45,20 +42,17 @@ public abstract class AbstractEnvironmentInitializationFilter implements Filter 
     public final void doFilter(ServletRequest request, ServletResponse response, FilterChain filterChain) throws IOException,
                                                                                                                  ServletException {
         final HttpServletRequest httpRequest = (HttpServletRequest)request;
-
-        final List<String> roles = new LinkedList<>();
-        Collections.addAll(roles, "workspace/admin", "workspace/developer", "system/admin", "system/manager", "user");
-        User user = new UserImpl("che", "che", "dummy_token", roles, false);
+        Subject subject = new SubjectImpl("che", "che", "dummy_token", false);
         HttpSession session = httpRequest.getSession();
-        session.setAttribute("codenvy_user", user);
+        session.setAttribute("codenvy_user", subject);
 
         final EnvironmentContext environmentContext = EnvironmentContext.getCurrent();
 
         try {
-            environmentContext.setUser(user);
+            environmentContext.setSubject(subject);
             environmentContext.setWorkspaceId(getWorkspaceId(request));
 
-            filterChain.doFilter(addUserInRequest(httpRequest, user), response);
+            filterChain.doFilter(addUserInRequest(httpRequest, subject), response);
         } finally {
             EnvironmentContext.reset();
         }
@@ -73,16 +67,11 @@ public abstract class AbstractEnvironmentInitializationFilter implements Filter 
      */
     protected abstract String getWorkspaceId(ServletRequest request);
 
-    private HttpServletRequest addUserInRequest(final HttpServletRequest httpRequest, final User user) {
+    private HttpServletRequest addUserInRequest(final HttpServletRequest httpRequest, final Subject subject) {
         return new HttpServletRequestWrapper(httpRequest) {
             @Override
             public String getRemoteUser() {
-                return user.getName();
-            }
-
-            @Override
-            public boolean isUserInRole(String role) {
-                return user.isMemberOf(role);
+                return subject.getUserName();
             }
 
             @Override
@@ -90,7 +79,7 @@ public abstract class AbstractEnvironmentInitializationFilter implements Filter 
                 return new Principal() {
                     @Override
                     public String getName() {
-                        return user.getName();
+                        return subject.getUserName();
                     }
                 };
             }

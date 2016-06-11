@@ -12,7 +12,6 @@ package org.eclipse.che.plugin.docker.machine;
 
 import org.eclipse.che.api.core.model.machine.Machine;
 import org.eclipse.che.api.core.model.machine.MachineConfig;
-import org.eclipse.che.commons.user.User;
 
 import java.util.Objects;
 import java.util.Optional;
@@ -25,7 +24,7 @@ import java.util.regex.Pattern;
  * @author Alexander Andrienko
  */
 public class DockerContainerNameGenerator {
-    private static final String NODE_HOST_GROUP    = "(/|(/[0-9a-z.]+/))?";
+    private static final String NODE_HOST_GROUP    = "(/|(/[0-9a-z.-]+/))?";
     private static final String WORKSPACE_ID_GROUP = "(?<workspaceId>workspace[0-9a-z]+)";
     private static final String MACHINE_ID_GROUP   = "(?<machineId>machine[0-9a-z]+)";
 
@@ -42,7 +41,7 @@ public class DockerContainerNameGenerator {
      * @param machineId
      *         unique machine id, see more {@link Machine#getId()}
      * @param userName
-     *         name of the user who is docker container owner, see more {@link User#getName}
+     *         name of the user who is docker container owner
      * @param machineName
      *         name of the workspace machine, see more {@link MachineConfig#getName()}
      */

@@ -472,7 +472,7 @@ export class CreateProjectCtrl {
       let deferredResolve = this.$q.defer();
       let deferredResolvePromise = deferredResolve.promise;
 
-      let importPromise = this.cheAPI.getWorkspace().getWorkspaceAgent(workspaceId).getProject().importProject(workspaceId, projectName, projectData.source);
+      let importPromise = this.cheAPI.getWorkspace().getWorkspaceAgent(workspaceId).getProject().importProject(projectName, projectData.source);
 
       importPromise.then(() => {
         // add commands if there are some that have been defined
@@ -528,20 +528,20 @@ export class CreateProjectCtrl {
     let projectTypeService = this.cheAPI.getWorkspace().getWorkspaceAgent(workspaceId).getProjectType();
 
     if (projectDetails.type) {
-      let updateProjectPromise = projectService.updateProject(workspaceId, projectName, projectDetails);
+      let updateProjectPromise = projectService.updateProject(projectName, projectDetails);
       updateProjectPromise.then(() => {
         deferredResolve.resolve();
       });
       return;
     }
 
-    let resolvePromise = projectService.fetchResolve(workspaceId, projectName);
+    let resolvePromise = projectService.fetchResolve(projectName);
     resolvePromise.then(() => {
-      let resultResolve = projectService.getResolve(workspaceId, projectName);
+      let resultResolve = projectService.getResolve(projectName);
       // get project-types
-      let fetchTypePromise = projectTypeService.fetchTypes(workspaceId);
+      let fetchTypePromise = projectTypeService.fetchTypes();
       fetchTypePromise.then(() => {
-        let projectTypesByCategory = projectTypeService.getProjectTypesIDs(workspaceId);
+        let projectTypesByCategory = projectTypeService.getProjectTypesIDs();
         // now try the estimate for each source
         let deferredEstimate = this.$q.defer();
         let deferredEstimatePromise = deferredResolve.promise;
@@ -559,7 +559,7 @@ export class CreateProjectCtrl {
           let projectType = projectTypesByCategory.get(sourceResolve.type);
           if (projectType.primaryable) {
             // call estimate
-            let estimatePromise = projectService.fetchEstimate(workspaceId, projectName, sourceResolve.type);
+            let estimatePromise = projectService.fetchEstimate(projectName, sourceResolve.type);
             estimatePromises.push(estimatePromise);
             estimateTypes.push(sourceResolve.type);
           }
@@ -573,7 +573,7 @@ export class CreateProjectCtrl {
             var firstMatchingType;
             var firstMatchingResult;
             estimateTypes.forEach((type) => {
-              let resultEstimate = projectService.getEstimate(workspaceId, projectName, type);
+              let resultEstimate = projectService.getEstimate(projectName, type);
               // add attributes
               // there is a matching estimate
               if (Object.keys(resultEstimate.attributes).length > 0 && 'java' !== type && !firstMatchingType) {
@@ -585,7 +585,7 @@ export class CreateProjectCtrl {
           if (firstMatchingType) {
             projectDetails.attributes = firstMatchingResult;
             projectDetails.type = firstMatchingType;
-            let updateProjectPromise = projectService.updateProject(workspaceId, projectName, projectDetails);
+            let updateProjectPromise = projectService.updateProject(projectName, projectDetails);
             updateProjectPromise.then(() => {
               deferredResolve.resolve();
             });
@@ -904,9 +904,12 @@ export class CreateProjectCtrl {
    */
   createWorkspace() {
     this.createProjectSvc.setWorkspaceOfProject(this.workspaceName);
+
     let attributes = this.stack ? {stackId: this.stack.id} : {};
+    let workspaceConfigTempl = this.stack ? this.stack.workspaceConfig : {};
+    let workspaceConfig = this.cheAPI.getWorkspace().formWorkspaceConfig(workspaceConfigTempl, this.workspaceName, this.recipeUrl, this.workspaceRam);
     //TODO: no account in che ? it's null when testing on localhost
-    let creationPromise = this.cheAPI.getWorkspace().createWorkspace(null, this.workspaceName, this.recipeUrl, this.workspaceRam, attributes);
+    let creationPromise = this.cheAPI.getWorkspace().createWorkspaceFromConfig(null, workspaceConfig, attributes);
     creationPromise.then((workspace) => {
       // init message bus if not there
       if (this.workspaces.length === 0) {
@@ -1175,5 +1178,17 @@ export class CreateProjectCtrl {
     } else {
       return "Load Workspace and Create Project";
     }
+  }
+
+  /**
+   * Returns list of projects of current workspace
+   * @returns {*|Array}
+   */
+  getWorkspaceProjects() {
+    if (this.workspaceSelected && this.workspaceResource === 'existing-workspace') {
+      let projects = this.cheAPI.getWorkspace().getWorkspaceProjects()[this.workspaceSelected.id];
+      return projects;
+    }
+    return [];
   }
 }

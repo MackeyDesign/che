@@ -10,6 +10,11 @@
  *******************************************************************************/
 package org.eclipse.che.plugin.maven.server.rest;
 
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiParam;
+import io.swagger.annotations.ApiResponse;
+import io.swagger.annotations.ApiResponses;
+
 import com.google.inject.Inject;
 
 import org.eclipse.che.api.core.ForbiddenException;
@@ -22,15 +27,19 @@ import org.eclipse.che.api.project.server.VirtualFileEntry;
 import org.eclipse.che.commons.xml.XMLTreeException;
 import org.eclipse.che.dto.server.DtoFactory;
 import org.eclipse.che.ide.ext.java.shared.dto.Problem;
-import org.eclipse.che.plugin.maven.server.MavenServerWrapper;
-import org.eclipse.che.plugin.maven.server.MavenWrapperManager;
-import org.eclipse.che.plugin.maven.server.core.MavenProgressNotifier;
-import org.eclipse.che.plugin.maven.server.core.MavenProjectManager;
-import org.eclipse.che.plugin.maven.server.core.classpath.ClasspathManager;
-import org.eclipse.che.plugin.maven.server.core.project.MavenProject;
 import org.eclipse.che.ide.maven.tools.Model;
 import org.eclipse.che.maven.data.MavenProjectProblem;
 import org.eclipse.che.maven.server.MavenTerminal;
+import org.eclipse.che.plugin.maven.server.MavenServerWrapper;
+import org.eclipse.che.plugin.maven.server.MavenWrapperManager;
+import org.eclipse.che.plugin.maven.server.core.EclipseWorkspaceProvider;
+import org.eclipse.che.plugin.maven.server.core.MavenProgressNotifier;
+import org.eclipse.che.plugin.maven.server.core.MavenProjectManager;
+import org.eclipse.che.plugin.maven.server.core.MavenWorkspace;
+import org.eclipse.che.plugin.maven.server.core.classpath.ClasspathManager;
+import org.eclipse.che.plugin.maven.server.core.project.MavenProject;
+import org.eclipse.core.resources.IProject;
+import org.eclipse.core.resources.IWorkspace;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.jface.text.BadLocationException;
 import org.eclipse.jface.text.Document;
@@ -39,10 +48,11 @@ import org.slf4j.LoggerFactory;
 import org.xml.sax.SAXParseException;
 
 import javax.ws.rs.GET;
+import javax.ws.rs.POST;
 import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
+import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -56,17 +66,16 @@ import static javax.ws.rs.core.MediaType.TEXT_XML;
  *
  * @author Valeriy Svydenko
  */
-@Path("/maven/{wsId}/server")
+@Path("/maven/server")
 public class MavenServerService {
     private static final Logger LOG = LoggerFactory.getLogger(MavenServerService.class);
 
-    private final MavenWrapperManager wrapperManager;
-    private final ProjectRegistry     projectRegistry;
-    private final MavenProjectManager mavenProjectManager;
-    private final ProjectManager      cheProjectManager;
-
-    @PathParam("wsId")
-    private String workspaceId;
+    private final MavenWrapperManager      wrapperManager;
+    private final ProjectRegistry          projectRegistry;
+    private final MavenProjectManager      mavenProjectManager;
+    private final MavenWorkspace           mavenWorkspace;
+    private final EclipseWorkspaceProvider eclipseWorkspaceProvider;
+    private final ProjectManager           cheProjectManager;
 
     @Inject
     private MavenProgressNotifier notifier;
@@ -84,12 +93,16 @@ public class MavenServerService {
     public MavenServerService(MavenWrapperManager wrapperManager,
                               ProjectRegistry projectRegistry,
                               ProjectManager projectManager,
-                              MavenProjectManager mavenProjectManager) {
+                              MavenProjectManager mavenProjectManager,
+                              MavenWorkspace mavenWorkspace,
+                              EclipseWorkspaceProvider eclipseWorkspaceProvider) {
 
         cheProjectManager = projectManager;
         this.wrapperManager = wrapperManager;
         this.projectRegistry = projectRegistry;
         this.mavenProjectManager = mavenProjectManager;
+        this.mavenWorkspace = mavenWorkspace;
+        this.eclipseWorkspaceProvider = eclipseWorkspaceProvider;
     }
 
     /**
@@ -127,7 +140,7 @@ public class MavenServerService {
             }
             return mavenServer.getEffectivePom(pomFile.getVirtualFile().toIoFile(), Collections.emptyList(), Collections.emptyList());
         } finally {
-           wrapperManager.release(mavenServer);
+            wrapperManager.release(mavenServer);
         }
     }
 
@@ -138,10 +151,27 @@ public class MavenServerService {
         return Boolean.toString(classpathManager.downloadSources(projectPath, fqn));
     }
 
+    @POST
+    @Path("reimport")
+    @ApiOperation(value = "Re-import maven model")
+    @ApiResponses({@ApiResponse(code = 200, message = "OK"),
+                   @ApiResponse(code = 500, message = "Internal Server Error")})
+    public Response reimportDependencies(@ApiParam(value = "The paths to projects which need to be reimported")
+                                         @QueryParam("projectPath") List<String> paths) throws ServerException {
+        IWorkspace workspace = eclipseWorkspaceProvider.get();
+        List<IProject> projectsList =
+                paths.stream().map(projectPath -> workspace.getRoot().getProject(projectPath)).collect(Collectors.toList());
+        mavenWorkspace.update(projectsList);
+        return Response.ok().build();
+    }
+
     @GET
-    @Path("pom/reconsile")
+    @Path("pom/reconcile")
+    @ApiOperation(value = "Reconcile pom.xml file")
+    @ApiResponses({@ApiResponse(code = 200, message = "OK")})
     @Produces("application/json")
-    public List<Problem> reconsilePom(@QueryParam("pompath") String pomPath) {
+    public List<Problem> reconcilePom(@ApiParam(value = "The paths to pom.xml file which need to be reconciled")
+                                      @QueryParam("pompath") String pomPath) {
         VirtualFileEntry entry = null;
         List<Problem> result = new ArrayList<>();
         try {
@@ -149,39 +179,27 @@ public class MavenServerService {
             if (entry == null) {
                 return result;
             }
+
             Model.readFrom(entry.getVirtualFile());
             org.eclipse.che.api.vfs.Path path = entry.getPath();
             String pomContent = entry.getVirtualFile().getContentAsString();
             MavenProject mavenProject =
                     mavenProjectManager.findMavenProject(ResourcesPlugin.getWorkspace().getRoot().getProject(path.getParent().toString()));
-            if (mavenProject != null) {
-                List<MavenProjectProblem> problems = mavenProject.getProblems();
-                int start = pomContent.indexOf("<project ") + 1;
-                int end = start + "<project ".length();
-                List<Problem> problemList = problems.stream().map(mavenProjectProblem -> {
-                    Problem problem = DtoFactory.newDto(Problem.class);
-                    problem.setError(true);
-                    problem.setSourceStart(start);
-                    problem.setSourceEnd(end);
-                    problem.setMessage(mavenProjectProblem.getDescription());
-                    return problem;
-                }).collect(Collectors.toList());
-
-                List<Problem> missedArtifacts =
-                        mavenProject.getDependencies().stream()
-                                    .filter(mavenArtifact -> !mavenArtifact.isResolved())
-                                    .map(artifact -> {
-                                        Problem problem = DtoFactory.newDto(Problem.class);
-                                        problem.setError(true);
-                                        problem.setSourceStart(start);
-                                        problem.setSourceEnd(end);
-                                        problem.setMessage("Dependency " + artifact.getDisplayString() + " not found.");
-                                        return problem;
-                                    }).collect(Collectors.toList());
-
-                result.addAll(missedArtifacts);
-                result.addAll(problemList);
+            if (mavenProject == null) {
+                return result;
             }
+
+            List<MavenProjectProblem> problems = mavenProject.getProblems();
+            int start = pomContent.indexOf("<project ") + 1;
+            int end = start + "<project ".length();
+
+            List<Problem> problemList = problems.stream().map(mavenProjectProblem -> DtoFactory.newDto(Problem.class)
+                                                                                               .withError(true)
+                                                                                               .withSourceStart(start)
+                                                                                               .withSourceEnd(end)
+                                                                                               .withMessage(mavenProjectProblem.getDescription()))
+                                                .collect(Collectors.toList());
+            result.addAll(problemList);
         } catch (ServerException | ForbiddenException | IOException e) {
             LOG.error(e.getMessage(), e);
         } catch (XMLTreeException exception) {
@@ -191,7 +209,6 @@ public class MavenServerService {
             }
         }
         return result;
-
     }
 
     private Problem createProblem(VirtualFileEntry entry, SAXParseException spe) {

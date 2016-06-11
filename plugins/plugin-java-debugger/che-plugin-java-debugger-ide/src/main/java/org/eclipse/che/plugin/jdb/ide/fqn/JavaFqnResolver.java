@@ -13,7 +13,7 @@ package org.eclipse.che.plugin.jdb.ide.fqn;
 import com.google.inject.Singleton;
 
 import org.eclipse.che.ide.api.project.node.HasProjectConfig;
-import org.eclipse.che.ide.api.project.tree.VirtualFile;
+import org.eclipse.che.ide.api.resources.VirtualFile;
 import org.eclipse.che.plugin.debugger.ide.fqn.FqnResolver;
 
 import javax.validation.constraints.NotNull;
@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.eclipse.che.ide.ext.java.client.projecttree.JavaSourceFolderUtil.getProjectBuilder;
+import static org.eclipse.che.ide.ext.java.shared.Constants.SOURCE_FOLDER;
 
 /**
  * @author Evgen Vidolob
@@ -75,7 +76,7 @@ public class JavaFqnResolver implements FqnResolver {
         String projectBuilder = getProjectBuilder(projectNode);
         Map<String, List<String>> attributes = projectNode.getProjectConfig().getAttributes();
 
-        sourceFolders.addAll(attributes.containsKey(projectBuilder + ".source.folder") ? attributes.get(projectBuilder + ".source.folder")
+        sourceFolders.addAll(attributes.containsKey(SOURCE_FOLDER) ? attributes.get(SOURCE_FOLDER)
                                                                                        : Collections.<String>emptyList());
 
         sourceFolders.addAll(attributes.containsKey(projectBuilder + ".test.source.folder") ? attributes.get(projectBuilder + ".test.source.folder")

@@ -160,7 +160,7 @@ public class DebuggerPresenter extends BasePresenter implements DebuggerView.Act
                     @Override
                     public void apply(SimpleValue arg) throws OperationException {
                         selectedVariable.setValue(arg.getValue());
-                        view.setVariablesIntoSelectedVariable(selectedVariable.getVariables());
+                        view.setVariablesIntoSelectedVariable(arg.getVariables());
                         view.updateSelectedVariable();
                     }
                 }).catchError(new Operation<PromiseError>() {
@@ -286,7 +286,7 @@ public class DebuggerPresenter extends BasePresenter implements DebuggerView.Act
         }).catchError(new Operation<PromiseError>() {
             @Override
             public void apply(PromiseError arg) throws OperationException {
-                notification.setTitle(constant.failedToConnectToRemoteDebuggerDescription(address));
+                notification.setTitle(constant.failedToConnectToRemoteDebuggerDescription(address, arg.getMessage()));
                 notification.setStatus(FAIL);
                 notification.setDisplayMode(FLOAT_MODE);
             }

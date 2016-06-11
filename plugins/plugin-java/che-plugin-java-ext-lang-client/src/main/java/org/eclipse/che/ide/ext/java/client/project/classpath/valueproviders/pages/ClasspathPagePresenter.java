@@ -70,12 +70,10 @@ public interface ClasspathPagePresenter extends Presenter {
      *
      * @param path
      *         path to node
-     * @param icon
-     *         of the added node
      */
-    void addNode(String path, int kind, SVGResource icon);
+    void addNode(String path, int kind);
 
     /** Removes selected node from the property page. */
-    void removeSelectedNode();
+    void removeNode(String path);
 
 }

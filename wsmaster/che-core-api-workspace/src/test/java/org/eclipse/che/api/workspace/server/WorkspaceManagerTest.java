@@ -17,12 +17,12 @@ import org.eclipse.che.api.core.model.workspace.WorkspaceStatus;
 import org.eclipse.che.api.core.notification.EventService;
 import org.eclipse.che.api.machine.server.MachineManager;
 import org.eclipse.che.api.machine.server.exception.MachineException;
-import org.eclipse.che.api.machine.server.model.impl.SnapshotImpl;
 import org.eclipse.che.api.machine.server.model.impl.MachineConfigImpl;
 import org.eclipse.che.api.machine.server.model.impl.MachineImpl;
 import org.eclipse.che.api.machine.server.model.impl.MachineRuntimeInfoImpl;
 import org.eclipse.che.api.machine.server.model.impl.MachineSourceImpl;
 import org.eclipse.che.api.machine.server.model.impl.ServerConfImpl;
+import org.eclipse.che.api.machine.server.model.impl.SnapshotImpl;
 import org.eclipse.che.api.user.server.UserManager;
 import org.eclipse.che.api.workspace.server.WorkspaceRuntimes.RuntimeDescriptor;
 import org.eclipse.che.api.workspace.server.model.impl.EnvironmentImpl;
@@ -33,8 +33,8 @@ import org.eclipse.che.api.workspace.server.spi.WorkspaceDao;
 import org.eclipse.che.api.workspace.shared.Constants;
 import org.eclipse.che.commons.env.EnvironmentContext;
 import org.eclipse.che.commons.lang.NameGenerator;
-import org.eclipse.che.commons.user.User;
-import org.eclipse.che.commons.user.UserImpl;
+import org.eclipse.che.commons.subject.Subject;
+import org.eclipse.che.commons.subject.SubjectImpl;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -43,7 +43,6 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Listeners;
 import org.testng.annotations.Test;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import static com.google.common.base.Strings.isNullOrEmpty;
@@ -81,6 +80,7 @@ import static org.testng.AssertJUnit.assertTrue;
 public class WorkspaceManagerTest {
 
     private static final String USER_ID = "user123";
+    private static final String NAMESPACE = "userNS";
 
     @Mock
     private EventService                  eventService;
@@ -109,7 +109,9 @@ public class WorkspaceManagerTest {
                                                     runtimes,
                                                     eventService,
                                                     machineManager,
-                                                    userManager));
+                                                    userManager,
+                                                    false,
+                                                    false));
         workspaceManager.setHooks(workspaceHooks);
 
         when(workspaceDao.create(any(WorkspaceImpl.class))).thenAnswer(invocation -> invocation.getArguments()[0]);
@@ -117,8 +119,8 @@ public class WorkspaceManagerTest {
 
         EnvironmentContext.setCurrent(new EnvironmentContext() {
             @Override
-            public User getUser() {
-                return new UserImpl("Test User", USER_ID, "token", new ArrayList<>(), false);
+            public Subject getSubject() {
+                return new SubjectImpl(NAMESPACE, USER_ID, "token", false);
             }
         });
     }
@@ -185,11 +187,9 @@ public class WorkspaceManagerTest {
 
     @Test
     public void shouldBeAbleToGetWorkspaceByKey() throws Exception {
-        final WorkspaceImpl workspace = workspaceManager.createWorkspace(createConfig(), "user123", "account");
+        final WorkspaceImpl workspace = workspaceManager.createWorkspace(createConfig(), NAMESPACE, "account");
         when(workspaceDao.get(workspace.getConfig().getName(), workspace.getNamespace())).thenReturn(workspace);
         when(runtimes.get(any())).thenThrow(new NotFoundException(""));
-        when(userManager.getByName(anyString())).thenReturn(new org.eclipse.che.api.user.server.dao.User()
-                                                                    .withId(workspace.getNamespace()));
 
         final WorkspaceImpl result = workspaceManager.getWorkspace(workspace.getNamespace() + ":" + workspace.getConfig().getName());
         assertEquals(result, workspace);
@@ -197,7 +197,7 @@ public class WorkspaceManagerTest {
 
     @Test
     public void shouldBeAbleToGetWorkspaceByKeyWithoutOwner() throws Exception {
-        final WorkspaceImpl workspace = workspaceManager.createWorkspace(createConfig(), "user123", "account");
+        final WorkspaceImpl workspace = workspaceManager.createWorkspace(createConfig(), NAMESPACE, "account");
         when(workspaceDao.get(workspace.getConfig().getName(), workspace.getNamespace())).thenReturn(workspace);
         when(runtimes.get(any())).thenThrow(new NotFoundException(""));
 
@@ -206,14 +206,14 @@ public class WorkspaceManagerTest {
     }
 
     @Test
-    public void shouldBeAbleToGetWorkspacesByOwner() throws Exception {
+    public void shouldBeAbleToGetWorkspacesAvailableForUser() throws Exception {
         // given
         final WorkspaceConfig config = createConfig();
 
         final WorkspaceImpl workspace1 = workspaceManager.createWorkspace(config, "user123", null);
-        final WorkspaceImpl workspace2 = workspaceManager.createWorkspace(config, "user123", null);
+        final WorkspaceImpl workspace2 = workspaceManager.createWorkspace(config, "user321", null);
 
-        when(workspaceDao.getByNamespace("user123")).thenReturn(asList(workspace1, workspace2));
+        when(workspaceDao.getWorkspaces("user123")).thenReturn(asList(workspace1, workspace2));
         final RuntimeDescriptor descriptor = createDescriptor(workspace2, RUNNING);
         when(runtimes.get(workspace2.getId())).thenReturn(descriptor);
 
@@ -448,6 +448,8 @@ public class WorkspaceManagerTest {
     @Test
     public void shouldBeAbleToStopWorkspace() throws Exception {
         final WorkspaceImpl workspace = workspaceManager.createWorkspace(createConfig(), "user123", "account");
+        final RuntimeDescriptor descriptor = createDescriptor(workspace, RUNNING);
+        when(runtimes.get(any())).thenReturn(descriptor);
         when(workspaceDao.get(workspace.getId())).thenReturn(workspace);
 
         workspaceManager.stopWorkspace(workspace.getId());
@@ -471,7 +473,7 @@ public class WorkspaceManagerTest {
     }
 
     @Test(expectedExceptions = ConflictException.class,
-          expectedExceptionsMessageRegExp = "Could not create a snapshot of the workspace " +
+          expectedExceptionsMessageRegExp = "Could not stop the workspace " +
                                             "'.*' because its status is 'STARTING'.")
     public void shouldFailCreatingSnapshotWhenStoppingWorkspaceWhichIsNotRunning() throws Exception {
         final WorkspaceImpl workspace = workspaceManager.createWorkspace(createConfig(), "user123", "account");
@@ -502,6 +504,8 @@ public class WorkspaceManagerTest {
         final WorkspaceImpl workspace = workspaceManager.createWorkspace(createConfig(), "user123", "account");
         workspace.setTemporary(true);
         when(workspaceDao.get(workspace.getId())).thenReturn(workspace);
+        final RuntimeDescriptor descriptor = createDescriptor(workspace, RUNNING);
+        when(runtimes.get(any())).thenReturn(descriptor);
 
         workspaceManager.stopWorkspace(workspace.getId());
 
@@ -529,6 +533,45 @@ public class WorkspaceManagerTest {
         final List<SnapshotImpl> snapshots = workspaceManager.getSnapshot("workspace123");
 
         assertEquals(snapshots.size(), 1);
+    }
+
+    @Test
+    public void shouldCreateWorkspaceSnapshotUsingDefaultValueForAutoRestore() throws Exception {
+        workspaceManager = spy(new WorkspaceManager(workspaceDao,
+                                                    runtimes,
+                                                    eventService,
+                                                    machineManager,
+                                                    userManager,
+                                                    true,
+                                                    false));
+        final WorkspaceImpl workspace = workspaceManager.createWorkspace(createConfig(), "user123", "account");
+        when(workspaceDao.get(workspace.getId())).thenReturn(workspace);
+        final RuntimeDescriptor descriptor = createDescriptor(workspace, RUNNING);
+        when(runtimes.get(any())).thenReturn(descriptor);
+
+        workspaceManager.stopWorkspace(workspace.getId());
+
+        verify(workspaceManager, timeout(2000)).createSnapshotSync(workspace.getRuntime(), workspace.getNamespace(), workspace.getId());
+        verify(runtimes, timeout(2000)).stop(any());
+    }
+
+    @Test
+    public void shouldStartWorkspaceFromSnapshotUsingDefaultValueForAutoRestore() throws Exception {
+        workspaceManager = spy(new WorkspaceManager(workspaceDao,
+                                                    runtimes,
+                                                    eventService,
+                                                    machineManager,
+                                                    userManager,
+                                                    false,
+                                                    true));
+        final WorkspaceImpl workspace = workspaceManager.createWorkspace(createConfig(), "user123", "account");
+        when(machineManager.getSnapshots(any(), any())).thenReturn(singletonList(mock(SnapshotImpl.class)));
+        when(workspaceDao.get(workspace.getId())).thenReturn(workspace);
+        when(runtimes.get(any())).thenThrow(new NotFoundException(""));
+
+        workspaceManager.startWorkspace(workspace.getId(), workspace.getConfig().getDefaultEnv(), "account");
+
+        verify(runtimes, timeout(2000)).start(workspace, workspace.getConfig().getDefaultEnv(), true);
     }
 
     private RuntimeDescriptor createDescriptor(WorkspaceImpl workspace, WorkspaceStatus status) {
@@ -562,7 +605,7 @@ public class WorkspaceManagerTest {
                                                               .setDev(true)
                                                               .setName("dev-machine")
                                                               .setType("docker")
-                                                              .setSource(new MachineSourceImpl("location", "dockerfile"))
+                                                              .setSource(new MachineSourceImpl("location").setLocation("dockerfile"))
                                                               .setServers(asList(new ServerConfImpl("ref1",
                                                                                                     "8080",
                                                                                                     "https",

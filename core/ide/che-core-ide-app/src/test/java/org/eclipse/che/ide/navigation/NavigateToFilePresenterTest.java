@@ -15,10 +15,9 @@ import com.google.web.bindery.event.shared.EventBus;
 import org.eclipse.che.ide.api.machine.events.WsAgentStateEvent;
 import org.eclipse.che.api.promises.client.Promise;
 import org.eclipse.che.api.workspace.shared.dto.WorkspaceDto;
-import org.eclipse.che.ide.api.app.AppContext;
 import org.eclipse.che.ide.api.app.CurrentProject;
 import org.eclipse.che.ide.api.notification.NotificationManager;
-import org.eclipse.che.ide.api.project.node.Node;
+import org.eclipse.che.ide.api.data.tree.Node;
 import org.eclipse.che.ide.dto.DtoFactory;
 import org.eclipse.che.ide.part.explorer.project.ProjectExplorerPresenter;
 import org.eclipse.che.ide.rest.DtoUnmarshallerFactory;
@@ -49,8 +48,6 @@ public class NavigateToFilePresenterTest {
     @Mock
     private NavigateToFileView       view;
     @Mock
-    private AppContext               appContext;
-    @Mock
     private EventBus                 eventBus;
     @Mock
     private MessageBusProvider       messageBusProvider;
@@ -78,12 +75,9 @@ public class NavigateToFilePresenterTest {
 
     @Before
     public void setUp() {
-        when(appContext.getCurrentProject()).thenReturn(project);
-        when(appContext.getWorkspace()).thenReturn(workspace);
         when(messageBusProvider.getMachineMessageBus()).thenReturn(messageBus);
 
         presenter = new NavigateToFilePresenter(view,
-                                                appContext,
                                                 eventBus,
                                                 dtoUnmarshallerFactory,
                                                 explorerPresenter,

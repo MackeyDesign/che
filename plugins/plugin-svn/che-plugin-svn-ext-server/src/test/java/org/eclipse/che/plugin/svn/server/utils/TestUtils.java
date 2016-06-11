@@ -21,7 +21,7 @@ import org.eclipse.che.api.vfs.VirtualFileSystem;
 import org.eclipse.che.api.vfs.VirtualFileSystemProvider;
 import org.eclipse.che.api.vfs.impl.file.LocalVirtualFileSystemProvider;
 import org.eclipse.che.commons.env.EnvironmentContext;
-import org.eclipse.che.commons.user.UserImpl;
+import org.eclipse.che.commons.subject.SubjectImpl;
 import org.eclipse.che.dto.server.DtoFactory;
 import org.eclipse.che.plugin.svn.server.SubversionApi;
 import org.eclipse.che.plugin.svn.server.SubversionException;
@@ -47,7 +47,6 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -76,9 +75,9 @@ public class TestUtils {
         public String getRepositoryUrl(final String projectPath) throws IOException {
             return "";
         }
-    });
+    }, null);
 
-    public static final String[] GREEK_TREE = new String[]{
+    public static final String[] GREEK_TREE = new String[] {
             "/",
             "/iota",
             "/A/",
@@ -166,8 +165,7 @@ public class TestUtils {
      */
     public static void createTestUser(final UserProfileDao userProfileDao) throws Exception {
         // set current user
-        EnvironmentContext.getCurrent().setUser(new UserImpl("codenvy", "codenvy", null,
-                                                             Arrays.asList("workspace/developer"), false));
+        EnvironmentContext.getCurrent().setSubject(new SubjectImpl("codenvy", "codenvy", null, false));
 
         // rules for mock
         final Map<String, String> profileAttributes = new HashMap<>();
@@ -196,7 +194,7 @@ public class TestUtils {
         wcRoot.deleteOnExit();
 
         // Create the repository
-        final CommandLineResult result = UpstreamUtils.executeCommandLine(null, "svnadmin", new String[]{
+        final CommandLineResult result = UpstreamUtils.executeCommandLine(null, "svnadmin", new String[] {
                 "create",
                 repoRoot.getAbsolutePath()
         }, -1, repoRoot);

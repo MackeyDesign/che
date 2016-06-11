@@ -35,7 +35,7 @@ import org.eclipse.che.api.workspace.shared.dto.stack.StackDto;
 import org.eclipse.che.api.workspace.shared.dto.stack.StackSourceDto;
 import org.eclipse.che.api.workspace.shared.stack.StackComponent;
 import org.eclipse.che.commons.env.EnvironmentContext;
-import org.eclipse.che.commons.user.UserImpl;
+import org.eclipse.che.commons.subject.SubjectImpl;
 import org.eclipse.che.dto.server.DtoFactory;
 import org.everrest.assured.EverrestJetty;
 import org.everrest.core.Filter;
@@ -45,7 +45,6 @@ import org.everrest.core.impl.uri.UriBuilderImpl;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.testng.MockitoTestNGListener;
-import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Listeners;
@@ -58,7 +57,6 @@ import java.lang.reflect.Field;
 import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
 
 import static com.jayway.restassured.RestAssured.given;
@@ -123,10 +121,9 @@ public class StackServiceTest {
     private static final String ICON_MEDIA_TYPE = "image/svg+xml";
 
     @SuppressWarnings("unused")
-    static final   EnvironmentFilter  FILTER = new EnvironmentFilter();
+    static final EnvironmentFilter  FILTER = new EnvironmentFilter();
     @SuppressWarnings("unused")
-    static final   ApiExceptionMapper MAPPER = new ApiExceptionMapper();
-    private static LinkedList<String> ROLES  = new LinkedList<>(Collections.singletonList("user"));
+    static final ApiExceptionMapper MAPPER = new ApiExceptionMapper();
 
     private List<String> tags = asList("java", "maven");
     private StackDto             stackDto;
@@ -158,7 +155,7 @@ public class StackServiceTest {
         componentsImpl = Collections.singletonList(new StackComponentImpl(COMPONENT_NAME, COMPONENT_VERSION));
         stackSourceImpl = new StackSourceImpl(SOURCE_TYPE, SOURCE_ORIGIN);
         CommandImpl command = new CommandImpl(COMMAND_NAME, COMMAND_LINE, COMMAND_TYPE);
-        MachineSourceImpl machineSource = new MachineSourceImpl(MACHINE_SOURCE_TYPE, MACHINE_SOURCE_LOCATION);
+        MachineSourceImpl machineSource = new MachineSourceImpl(MACHINE_SOURCE_TYPE).setLocation(MACHINE_SOURCE_LOCATION);
         int limitMemory = 1000;
         LimitsImpl limits = new LimitsImpl(limitMemory);
         MachineConfigImpl machineConfig = new MachineConfigImpl(IS_DEV,
@@ -231,12 +228,6 @@ public class StackServiceTest {
                                       .getDeclaredField("uriInfo");
         uriField.setAccessible(true);
         uriField.set(service, uriInfo);
-    }
-
-    @AfterMethod
-    public void cleanUp() {
-        ROLES.remove("system/admin");
-        ROLES.remove("system/manager");
     }
 
     /** Create stack */
@@ -600,21 +591,6 @@ public class StackServiceTest {
         verify(stackDao).update(stackImpl);
     }
 
-    @Test
-    public void foreignStackIconShouldBeDeletedForAdmin() throws NotFoundException, ServerException {
-        ROLES.add("system/admin");
-        when(stackDao.getById(foreignStack.getId())).thenReturn(foreignStack);
-
-        Response response = given().auth()
-                                   .basic(ADMIN_USER_NAME, ADMIN_USER_PASSWORD)
-                                   .when()
-                                   .delete(SECURE_PATH + "/stack/" + foreignStack.getId() + "/icon");
-
-        assertEquals(response.getStatusCode(), 204);
-        verify(stackDao).getById(stackImpl.getId());
-        verify(stackDao).update(any());
-    }
-
     /** Update stack icon */
 
     @Test
@@ -663,7 +639,7 @@ public class StackServiceTest {
     @Filter
     public static class EnvironmentFilter implements RequestFilter {
         public void doFilter(GenericContainerRequest request) {
-            EnvironmentContext.getCurrent().setUser(new UserImpl("user", USER_ID, "token", ROLES, false));
+            EnvironmentContext.getCurrent().setSubject(new SubjectImpl("user", USER_ID, "token", false));
         }
     }
 }

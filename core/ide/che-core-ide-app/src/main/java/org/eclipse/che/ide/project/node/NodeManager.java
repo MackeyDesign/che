@@ -34,9 +34,9 @@ import org.eclipse.che.ide.api.event.project.CreateProjectHandler;
 import org.eclipse.che.ide.api.event.project.DeleteProjectEvent;
 import org.eclipse.che.ide.api.event.project.DeleteProjectHandler;
 import org.eclipse.che.ide.api.event.project.ProjectUpdatedEvent;
-import org.eclipse.che.ide.api.project.node.Node;
-import org.eclipse.che.ide.api.project.node.settings.NodeSettings;
-import org.eclipse.che.ide.api.project.node.settings.SettingsProvider;
+import org.eclipse.che.ide.api.data.tree.Node;
+import org.eclipse.che.ide.api.data.tree.settings.NodeSettings;
+import org.eclipse.che.ide.api.data.tree.settings.SettingsProvider;
 import org.eclipse.che.ide.dto.DtoFactory;
 import org.eclipse.che.ide.project.node.factory.NodeFactory;
 import org.eclipse.che.ide.project.node.icon.NodeIconProvider;
@@ -325,7 +325,7 @@ public class NodeManager {
 
     @Deprecated
     public static boolean isProjectOrModuleNode(Node node) {
-        return node instanceof ProjectNode || node instanceof ModuleNode;
+        return node instanceof ProjectNode;
     }
 
     protected <T> Function<T, Promise<T>> self() {

@@ -59,7 +59,7 @@
       "commands": [
         {
           "commandLine": "mvn clean install -f ${current.project.path}",
-          "name": "newMaven",
+          "name": "build",
           "type": "mvn"
         }
       ]
@@ -184,7 +184,14 @@
       ],
       "name": "default",
       "defaultEnv": "default",
-      "description": null
+      "description": null,
+      "commands": [
+        {
+          "commandLine": "mvn clean install -f ${current.project.path}",
+          "name": "build",
+          "type": "mvn"
+        }
+      ]
     },
     "acl": [
       {
@@ -196,81 +203,6 @@
     ],
     "stackIcon": {
       "name": "type-android.svg",
-      "mediaType": "image/svg+xml"
-    }
-  },
-  {
-    "id": "aspnet-default",
-    "creator": "ide",
-    "name": "ASP.net",
-    "description": "Default ASP.net Stack with DNX and libuv.",
-    "scope": "general",
-    "tags": [
-      "Debian",
-      "ASP",
-      "Git",
-      "mono",
-      "libc6",
-      "dnx",
-      "libuv"
-    ],
-    "components": [
-      {
-        "name": "Debian",
-        "version": "7.9"
-      },
-      {
-        "name": "Mono",
-        "version": "4.0.5.1"
-      },
-      {
-        "name": "DNX",
-        "version": "1.0.0-rc1-final"
-      },
-      {
-        "name": "libuv",
-        "version": "1.4.2"
-      }
-    ],
-    "source": {
-      "type": "image",
-      "origin": "codenvy/aspnet"
-    },
-    "workspaceConfig": {
-      "environments": [
-        {
-          "name": "default",
-          "recipe": null,
-          "machineConfigs": [
-            {
-              "name": "default",
-              "limits": {
-                "ram": 1000
-              },
-              "source": {
-                "location": "stub",
-                "type": "dockerfile"
-              },
-              "type": "docker",
-              "dev": true
-            }
-          ]
-        }
-      ],
-      "name": "default",
-      "defaultEnv": "default",
-      "description": null
-    },
-    "acl": [
-      {
-        "user": "*",
-        "actions": [
-          "read"
-        ]
-      }
-    ],
-    "stackIcon": {
-      "name": "type-aspnet.svg",
       "mediaType": "image/svg+xml"
     }
   },
@@ -328,7 +260,14 @@
       ],
       "name": "default",
       "defaultEnv": "default",
-      "description": null
+      "description": null,
+      "commands": [
+        {
+          "name": "run",
+          "type": "custom",
+          "commandLine": "cd ${current.project.path} && make && ./a.out"
+        }
+      ]
     },
     "acl": [
       {
@@ -340,6 +279,87 @@
     ],
     "stackIcon": {
       "name": "type-cpp.svg",
+      "mediaType": "image/svg+xml"
+    }
+  },
+  {
+    "id": "dotnet-default",
+    "creator": "ide",
+    "name": ".NET",
+    "description": "Default .NET Stack with .NET Core SDK",
+    "scope": "general",
+    "tags": [
+      "Ubuntu",
+      "dotnet",
+      "Git"
+    ],
+    "components": [
+      {
+        "name": "Ubuntu",
+        "version": "14.04"
+      },
+      {
+        "name": ".NET Core SDK",
+        "version": "1.0.0-preview1-002702"
+      }
+    ],
+    "source": {
+      "type": "image",
+      "origin": "codenvy/dotnet_core"
+    },
+    "workspaceConfig": {
+      "environments": [
+        {
+          "name": "default",
+          "recipe": null,
+          "machineConfigs": [
+            {
+              "name": "default",
+              "limits": {
+                "ram": 1000
+              },
+              "source": {
+                "location": "stub",
+                "type": "dockerfile"
+              },
+              "type": "docker",
+              "dev": true
+            }
+          ]
+        }
+      ],
+      "name": "default",
+      "defaultEnv": "default",
+      "description": null,
+      "commands": [
+        {
+          "name": "update dependencies",
+          "type": "custom",
+          "commandLine": "cd ${current.project.path} && dotnet restore",
+          "attributes": {
+            "previewUrl": ""
+          }
+        },
+        {
+          "name": "run",
+          "type": "custom",
+          "commandLine": "cd ${current.project.path} && dotnet run",
+          "attributes": {
+            "previewUrl": "http://${server.port.5000}"
+          }
+        }
+      ]
+    },
+    "acl": [
+      {
+        "user": "*",
+        "actions": [
+          "read"
+        ]
+      }
+    ],
+    "stackIcon": {
+      "name": "type-dotnet.svg",
       "mediaType": "image/svg+xml"
     }
   },
@@ -493,7 +513,33 @@
       ],
       "name": "default",
       "defaultEnv": "default",
-      "description": null
+      "description": null,
+      "commands": [
+        {
+          "name": "start apache",
+          "type": "custom",
+          "commandLine": "sudo service apache2 start && sudo tail -f /var/log/apache2/access.log -f /var/log/apache2/error.log",
+          "attributes": {
+            "previewUrl": "http://${server.port.80}/${current.project.relpath}"
+          }
+        },
+        {
+          "name": "stop apache",
+          "type": "custom",
+          "commandLine": "sudo service apache2 stop",
+          "attributes": {
+            "previewUrl": ""
+          }
+        },
+        {
+          "name": "restart apache",
+          "type": "custom",
+          "commandLine": "sudo service apache2 restart",
+          "attributes": {
+            "previewUrl": "http://${server.port.80}/${current.project.relpath}"
+          }
+        }
+      ]
     },
     "acl": [
       {
@@ -557,7 +603,17 @@
       ],
       "name": "default",
       "defaultEnv": "default",
-      "description": null
+      "description": null,
+      "commands": [
+        {
+          "name": "run",
+          "type": "custom",
+          "commandLine": "cd ${current.project.path} && python main.py",
+          "attributes": {
+            "previewUrl": ""
+          }
+        }
+      ]
     },
     "acl": [
       {
@@ -626,7 +682,25 @@
       ],
       "name": "default",
       "defaultEnv": "default",
-      "description": null
+      "description": null,
+      "commands": [
+        {
+          "name": "install dependencies",
+          "type": "custom",
+          "commandLine": "cd ${current.project.path} && bundle install",
+          "attributes": {
+            "previewUrl": ""
+          }
+        },
+        {
+          "name": "run",
+          "type": "custom",
+          "commandLine": "cd ${current.project.path} && rails server -b 0.0.0.0",
+          "attributes": {
+            "previewUrl": "http://${server.port.3000}"
+          }
+        }
+      ]
     },
     "acl": [
       {
@@ -757,7 +831,7 @@
       "commands": [
         {
           "commandLine": "mvn clean install -f ${current.project.path}",
-          "name": "newMaven",
+          "name": "build",
           "type": "mvn"
         }
       ]
@@ -838,7 +912,7 @@
       "commands": [
         {
           "commandLine": "mvn clean install -f ${current.project.path}",
-          "name": "newMaven",
+          "name": "build",
           "type": "mvn"
         }
       ]
@@ -853,6 +927,93 @@
     ],
     "stackIcon": {
       "name": "type-java.svg",
+      "mediaType": "image/svg+xml"
+    }
+  },
+  {
+    "id": "php-gae",
+    "creator": "ide",
+    "name": "PHP GAE",
+    "description": "Default PHP Stack with PHP 5.5 and PHP GAE SDK 1.9.37.",
+    "scope": "advanced",
+    "tags": [
+      "PHP-GAE"
+    ],
+    "components": [
+      {
+        "name": "PHP",
+        "version": "5.5.9"
+      },
+      {
+        "name": "Apache",
+        "version": "2"
+      },
+      {
+        "name": "GAE SDK",
+        "version": "1.9.37"
+      },
+      {
+        "name": "MySQL",
+        "version": "---"
+      },
+      {
+        "name": "Sqlite",
+        "version": "---"
+      },
+      {
+        "name": "Composer",
+        "version": "---"
+      }
+    ],
+    "source": {
+      "type": "image",
+      "origin": "codenvy/php:gae"
+    },
+    "workspaceConfig": {
+      "environments": [
+        {
+          "name": "default",
+          "recipe": null,
+          "machineConfigs": [
+            {
+              "name": "default",
+              "limits": {
+                "ram": 1000
+              },
+              "source": {
+                "location": "stub",
+                "type": "dockerfile"
+              },
+              "type": "docker",
+              "dev": true
+            }
+          ]
+        }
+      ],
+      "name": "default",
+      "defaultEnv": "default",
+      "description": null,
+      "commands": [
+        {
+          "name": "run",
+          "type": "custom",
+          "commandLine": "cd ${GAE} && ./dev_appserver.py 2>&1 --php_executable_path=/usr/bin/php5-cgi --skip_sdk_update_check true --host=0.0.0.0 --admin_host=0.0.0.0 ${current.project.path}",
+          "attributes": {
+            "previewUrl": "http://${server.port.8080}"
+          }
+        }
+      ]
+    },
+    "acl": [
+      {
+        "user": "*",
+        "actions": [
+          "read"
+        ]
+      }
+    ],
+    "stackIcon": {
+      "name": "type-php.svg",
       "mediaType": "image/svg+xml"
     }
   },
@@ -905,7 +1066,88 @@
       ],
       "name": "default",
       "defaultEnv": "default",
-      "description": null
+      "description": null,
+      "commands": [
+        {
+          "name": "run",
+          "type": "custom",
+          "commandLine": "cd ${current.project.path} && sudo virtualenv /env && sudo pip install -r requirements.txt && python main.py",
+          "attributes": {
+            "previewUrl": "http://${server.port.8080}"
+          }
+        }
+      ]
+    },
+    "acl": [
+      {
+        "user": "*",
+        "actions": [
+          "read"
+        ]
+      }
+    ],
+    "stackIcon": {
+      "name": "type-python.svg",
+      "mediaType": "image/svg+xml"
+    }
+  },
+  {
+    "id": "python-gae",
+    "creator": "ide",
+    "name": "Python GAE",
+    "description": "Default Python Stack with Python 2.7, Python GAE SDK 1.9.37.",
+    "scope": "advanced",
+    "tags": [
+      "Python-GAE"
+    ],
+    "components": [
+      {
+        "name": "Python",
+        "version": "3.5.1"
+      },
+      {
+        "name": "GAE SDK",
+        "version": "1.9.37"
+      }
+    ],
+    "source": {
+      "type": "image",
+      "origin": "codenvy/ubuntu_python:gae_python2.7"
+    },
+    "workspaceConfig": {
+      "environments": [
+        {
+          "name": "default",
+          "recipe": null,
+          "machineConfigs": [
+            {
+              "name": "default",
+              "limits": {
+                "ram": 1000
+              },
+              "source": {
+                "location": "stub",
+                "type": "dockerfile"
+              },
+              "type": "docker",
+              "dev": true
+            }
+          ]
+        }
+      ],
+      "name": "default",
+      "defaultEnv": "default",
+      "description": null,
+      "commands": [
+        {
+          "name": "run",
+          "type": "custom",
+          "commandLine": "cd ${GAE} && ./dev_appserver.py 2>&1 --skip_sdk_update_check true --host=0.0.0.0 --admin_host=0.0.0.0 ${current.project.path}",
+          "attributes": {
+            "previewUrl": "http://${server.port.8080}"
+          }
+        }
+      ]
     },
     "acl": [
       {
@@ -1056,7 +1298,7 @@
       "commands": [
         {
           "commandLine": "mvn clean install -f ${current.project.path}",
-          "name": "newMaven",
+          "name": "build",
           "type": "mvn"
         }
       ]

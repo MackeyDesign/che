@@ -21,7 +21,7 @@ import org.eclipse.che.ide.CoreLocalizationConstant;
 import org.eclipse.che.ide.api.app.AppContext;
 import org.eclipse.che.ide.api.event.project.CreateProjectEvent;
 import org.eclipse.che.ide.api.project.node.HasStorablePath;
-import org.eclipse.che.ide.api.project.node.Node;
+import org.eclipse.che.ide.api.data.tree.Node;
 import org.eclipse.che.ide.api.project.type.wizard.ProjectWizardMode;
 import org.eclipse.che.ide.api.selection.Selection;
 import org.eclipse.che.ide.api.selection.SelectionAgent;
@@ -63,7 +63,6 @@ public class ProjectWizard extends AbstractWizard<ProjectConfigDto> {
     private final SelectionAgent           selectionAgent;
     private final ProjectImporter          importer;
     private final ProjectUpdater           updater;
-    private final String                   workspaceId;
     private final CoreLocalizationConstant locale;
 
     @Inject
@@ -92,7 +91,6 @@ public class ProjectWizard extends AbstractWizard<ProjectConfigDto> {
         this.importer = importer;
         this.updater = updater;
         this.locale = locale;
-        this.workspaceId = appContext.getWorkspaceId();
 
         context.put(WIZARD_MODE_KEY, mode.toString());
         context.put(PROJECT_NAME_KEY, dataObject.getName());

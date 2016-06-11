@@ -58,7 +58,7 @@ import static org.eclipse.che.dto.server.DtoFactory.newDto;
  *
  * @author Anatoliy Bazko
  */
-@Path("debugger/{ws-id}")
+@Path("debugger")
 public class DebuggerService {
     private final DebuggerManager debuggerManager;
 
@@ -169,7 +169,7 @@ public class DebuggerService {
     public SimpleValueDto getValue(@PathParam("id") String sessionId, @Context UriInfo uriInfo) throws DebuggerException {
         List<String> path = new ArrayList<>();
 
-        MultivaluedMap<String, String> parameters = uriInfo.getPathParameters();
+        MultivaluedMap<String, String> parameters = uriInfo.getQueryParameters();
 
         int i = 0;
         String item;

@@ -11,12 +11,13 @@
 package org.eclipse.che.api.factory.server.impl;
 
 import org.eclipse.che.api.core.ApiException;
+import org.eclipse.che.api.core.ForbiddenException;
 import org.eclipse.che.api.core.ServerException;
 import org.eclipse.che.api.factory.server.FactoryEditValidator;
 import org.eclipse.che.api.factory.shared.dto.Author;
 import org.eclipse.che.api.factory.shared.dto.Factory;
 import org.eclipse.che.commons.env.EnvironmentContext;
-import org.eclipse.che.commons.user.User;
+import org.eclipse.che.commons.subject.Subject;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.testng.MockitoTestNGListener;
@@ -51,6 +52,24 @@ public class FactoryEditValidatorImplTest {
     }
 
     /**
+     * Check when user is not  same than the one than create the factory
+     * @throws ApiException
+     */
+    @Test(expectedExceptions = ForbiddenException.class)
+    public void testUserIsNotTheAuthor() throws ApiException {
+        String userId = "florent";
+        setCurrentUser(userId);
+
+        Author author = mock(Author.class);
+        doReturn(author).when(factory)
+                        .getCreator();
+        doReturn("john").when(author)
+                        .getUserId();
+
+        factoryEditValidator.validate(factory);
+    }
+
+    /**
      * Check when user is the same than the one than create the factory
      * @throws ApiException
      */
@@ -68,8 +87,8 @@ public class FactoryEditValidatorImplTest {
     }
 
     private void setCurrentUser(String userId) {
-        User user = mock(User.class);
-        when(user.getId()).thenReturn(userId);
-        EnvironmentContext.getCurrent().setUser(user);
+        Subject subject = mock(Subject.class);
+        when(subject.getUserId()).thenReturn(userId);
+        EnvironmentContext.getCurrent().setSubject(subject);
     }
 }

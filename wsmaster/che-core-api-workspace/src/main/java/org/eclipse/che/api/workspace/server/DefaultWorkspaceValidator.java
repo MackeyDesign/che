@@ -10,6 +10,8 @@
  *******************************************************************************/
 package org.eclipse.che.api.workspace.server;
 
+import com.google.common.base.Joiner;
+
 import org.eclipse.che.api.core.BadRequestException;
 import org.eclipse.che.api.core.model.machine.Command;
 import org.eclipse.che.api.core.model.machine.MachineConfig;
@@ -18,8 +20,6 @@ import org.eclipse.che.api.core.model.workspace.Environment;
 import org.eclipse.che.api.core.model.workspace.Workspace;
 import org.eclipse.che.api.core.model.workspace.WorkspaceConfig;
 import org.eclipse.che.api.machine.server.MachineInstanceProviders;
-
-import com.google.common.base.Joiner;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -123,6 +123,9 @@ public class DefaultWorkspaceValidator implements WorkspaceValidator {
     private void validateMachine(MachineConfig machineCfg, String envName) throws BadRequestException {
         checkArgument(!isNullOrEmpty(machineCfg.getName()), "Environment %s contains machine with null or empty name", envName);
         checkNotNull(machineCfg.getSource(), "Environment " + envName + " contains machine without source");
+        checkArgument(!(machineCfg.getSource().getContent() == null && machineCfg.getSource().getLocation() == null),
+                      "Environment " + envName + " contains machine with source but this source doesn't define a location or content");
+
         checkArgument(machineInstanceProviders.hasProvider(machineCfg.getType()),
                       "Type %s of machine %s in environment %s is not supported. Supported values: %s.",
                       machineCfg.getType(),

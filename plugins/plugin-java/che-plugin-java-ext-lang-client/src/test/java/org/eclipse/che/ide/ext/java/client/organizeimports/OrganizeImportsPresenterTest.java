@@ -20,7 +20,7 @@ import org.eclipse.che.ide.api.app.AppContext;
 import org.eclipse.che.ide.api.editor.EditorInput;
 import org.eclipse.che.ide.api.notification.NotificationManager;
 import org.eclipse.che.ide.api.project.node.HasProjectConfig;
-import org.eclipse.che.ide.api.project.tree.VirtualFile;
+import org.eclipse.che.ide.api.resources.VirtualFile;
 import org.eclipse.che.ide.dto.DtoFactory;
 import org.eclipse.che.ide.ext.java.client.JavaLocalizationConstant;
 import org.eclipse.che.ide.ext.java.client.editor.JavaCodeAssistClient;
@@ -107,9 +107,6 @@ public class OrganizeImportsPresenterTest {
         when(projectConfigDto.getPath()).thenReturn(PATH);
         when(file.getName()).thenReturn("A.java");
         when(file.getPath()).thenReturn(PATH);
-
-        when(appContext.getWorkspaceId()).thenReturn(WS_ID);
-
         when(javaCodeAssistClient.organizeImports(anyString(), anyString())).thenReturn(importsPromise);
         when(importsPromise.then(Matchers.<Operation<List<ConflictImportDTO>>>anyObject())).thenReturn(importsPromise);
 

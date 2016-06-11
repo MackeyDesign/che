@@ -16,7 +16,7 @@
     <parent>
         <artifactId>che-plugin-java-parent</artifactId>
         <groupId>org.eclipse.che.plugin</groupId>
-        <version>4.3.0-RC1-SNAPSHOT</version>
+        <version>4.3.0-RC2-SNAPSHOT</version>
     </parent>
     <artifactId>che-plugin-java-ext-jdt-parent</artifactId>
     <packaging>pom</packaging>
@@ -32,6 +32,5 @@
         <module>che-plugin-java-jdt-core-repack</module>
         <module>org-eclipse-jdt-ui</module>
         <module>org-eclipse-ltk-core-refactoring</module>
-        <module>che-jdt-ext-machine</module>
     </modules>
 </project>

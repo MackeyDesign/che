@@ -59,7 +59,7 @@ import org.eclipse.che.ide.api.parts.PerspectiveManager;
 import org.eclipse.che.ide.api.parts.ProjectExplorerPart;
 import org.eclipse.che.ide.api.parts.base.BasePresenter;
 import org.eclipse.che.ide.api.project.node.HasStorablePath;
-import org.eclipse.che.ide.api.project.node.Node;
+import org.eclipse.che.ide.api.data.tree.Node;
 import org.eclipse.che.ide.api.selection.Selection;
 import org.eclipse.che.ide.part.explorer.project.ProjectExplorerView.ActionDelegate;
 import org.eclipse.che.ide.part.explorer.project.synchronize.ProjectConfigSynchronizationListener;
@@ -71,7 +71,6 @@ import org.eclipse.che.ide.project.event.ResourceNodeRenamedEvent.ResourceNodeRe
 import org.eclipse.che.ide.project.node.FileReferenceNode;
 import org.eclipse.che.ide.project.node.FolderReferenceNode;
 import org.eclipse.che.ide.project.node.ItemReferenceBasedNode;
-import org.eclipse.che.ide.project.node.ModuleNode;
 import org.eclipse.che.ide.project.node.NodeManager;
 import org.eclipse.che.ide.project.node.ProjectNode;
 import org.eclipse.che.ide.projecttype.wizard.presenter.ProjectWizardPresenter;
@@ -399,12 +398,7 @@ public class ProjectExplorerPresenter extends BasePresenter implements ActionDel
             }
 
             node.setData(newDTO);
-        } else if (event.getNode() instanceof ModuleNode) {
-            ProjectConfigDto newDTO = (ProjectConfigDto)event.getNewDataObject();
-            ModuleNode node = (ModuleNode)event.getNode();
-            node.setData(newDTO);
         }
-
         if (!view.reIndex(oldNodeId, event.getNode())) {
             Log.info(getClass(), "Node wasn't re-indexed");
         }

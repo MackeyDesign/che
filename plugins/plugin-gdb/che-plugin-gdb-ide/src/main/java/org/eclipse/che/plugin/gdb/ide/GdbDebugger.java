@@ -16,9 +16,10 @@ import com.google.web.bindery.event.shared.EventBus;
 import org.eclipse.che.api.debug.shared.model.Location;
 import org.eclipse.che.ide.api.app.AppContext;
 import org.eclipse.che.ide.api.app.CurrentProject;
+import org.eclipse.che.ide.api.debug.BreakpointManager;
 import org.eclipse.che.ide.api.debug.DebuggerServiceClient;
 import org.eclipse.che.ide.api.filetypes.FileTypeRegistry;
-import org.eclipse.che.ide.api.project.tree.VirtualFile;
+import org.eclipse.che.ide.api.resources.VirtualFile;
 import org.eclipse.che.ide.debug.DebuggerDescriptor;
 import org.eclipse.che.ide.debug.DebuggerManager;
 import org.eclipse.che.ide.dto.DtoFactory;
@@ -56,6 +57,7 @@ public class GdbDebugger extends AbstractDebugger {
                        GdbDebuggerFileHandler activeFileHandler,
                        DebuggerManager debuggerManager,
                        FileTypeRegistry fileTypeRegistry,
+                       BreakpointManager breakpointManager,
                        AppContext appContext) {
 
         super(service,
@@ -67,6 +69,7 @@ public class GdbDebugger extends AbstractDebugger {
               activeFileHandler,
               debuggerManager,
               fileTypeRegistry,
+              breakpointManager,
               ID);
         this.appContext = appContext;
     }
@@ -90,8 +93,10 @@ public class GdbDebugger extends AbstractDebugger {
 
     @Override
     protected DebuggerDescriptor toDescriptor(Map<String, String> connectionProperties) {
-        String address = connectionProperties.get(HOST.toString()) + ":" +
-                         connectionProperties.get(PORT.toString());
+        String host = connectionProperties.get(HOST.toString());
+        String port = connectionProperties.get(PORT.toString());
+        String address = host + (port.isEmpty() || port.equals("0") ? ""
+                                                                    : (":" + port));
         return new DebuggerDescriptor("", address);
     }
 

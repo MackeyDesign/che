@@ -25,7 +25,6 @@ import org.eclipse.che.commons.env.EnvironmentContext;
 import org.eclipse.che.commons.lang.NameGenerator;
 import org.eclipse.che.dto.server.DtoFactory;
 
-import javax.annotation.security.RolesAllowed;
 import javax.inject.Inject;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
@@ -72,7 +71,6 @@ public class RecipeService extends Service {
     @Consumes(APPLICATION_JSON)
     @Produces(APPLICATION_JSON)
     @GenerateLink(rel = LINK_REL_CREATE_RECIPE)
-    @RolesAllowed("user")
     public Response createRecipe(NewRecipe newRecipe) throws ApiException {
         if (newRecipe == null) {
             throw new BadRequestException("Recipe required");
@@ -86,7 +84,7 @@ public class RecipeService extends Service {
         if (isNullOrEmpty(newRecipe.getName())) {
             throw new BadRequestException("Recipe name required");
         }
-        String userId = EnvironmentContext.getCurrent().getUser().getId();
+        String userId = EnvironmentContext.getCurrent().getSubject().getUserId();
 
         final RecipeImpl recipe = new RecipeImpl().withId(NameGenerator.generate("recipe", 16))
                                                   .withName(newRecipe.getName())
@@ -104,7 +102,6 @@ public class RecipeService extends Service {
     @GET
     @Path("/{id}/script")
     @Produces(TEXT_PLAIN)
-    @RolesAllowed("user")
     public String getRecipeScript(@PathParam("id") String id) throws ApiException {
         final ManagedRecipe recipe = recipeDao.getById(id);
         return recipe.getScript();
@@ -113,7 +110,6 @@ public class RecipeService extends Service {
     @GET
     @Path("/{id}")
     @Produces(APPLICATION_JSON)
-    @RolesAllowed("user")
     public RecipeDescriptor getRecipe(@PathParam("id") String id) throws ApiException {
         return asRecipeDescriptor(recipeDao.getById(id));
     }
@@ -121,12 +117,11 @@ public class RecipeService extends Service {
     @GET
     @Produces(APPLICATION_JSON)
     @GenerateLink(rel = LINK_REL_SEARCH_RECIPES)
-    @RolesAllowed("user")
     public List<RecipeDescriptor> searchRecipes(@QueryParam("tags") List<String> tags,
                                                 @QueryParam("type") String type,
                                                 @DefaultValue("0") @QueryParam("skipCount") Integer skipCount,
                                                 @DefaultValue("30") @QueryParam("maxItems") Integer maxItems) throws ApiException {
-        final String currentUser = EnvironmentContext.getCurrent().getUser().getId();
+        final String currentUser = EnvironmentContext.getCurrent().getSubject().getUserId();
         return recipeDao.search(currentUser, tags, type, skipCount, maxItems)
                         .stream()
                         .map(this::asRecipeDescriptor)
@@ -137,7 +132,6 @@ public class RecipeService extends Service {
     @Consumes(APPLICATION_JSON)
     @Produces(APPLICATION_JSON)
     @GenerateLink(rel = LINK_REL_UPDATE_RECIPE)
-    @RolesAllowed("user")
     public RecipeDescriptor updateRecipe(RecipeUpdate update) throws ApiException {
         if (update == null) {
             throw new BadRequestException("Update required");
@@ -151,7 +145,6 @@ public class RecipeService extends Service {
 
     @DELETE
     @Path("/{id}")
-    @RolesAllowed("user")
     public void removeRecipe(@PathParam("id") String id) throws ApiException {
         recipeDao.remove(id);
     }

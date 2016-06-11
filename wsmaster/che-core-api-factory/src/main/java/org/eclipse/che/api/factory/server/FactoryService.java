@@ -39,11 +39,10 @@ import org.eclipse.che.commons.env.EnvironmentContext;
 import org.eclipse.che.commons.lang.NameGenerator;
 import org.eclipse.che.commons.lang.Pair;
 import org.eclipse.che.commons.lang.URLEncodedUtils;
-import org.eclipse.che.commons.user.User;
+import org.eclipse.che.commons.subject.Subject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.annotation.security.RolesAllowed;
 import javax.inject.Inject;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
@@ -63,9 +62,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -82,12 +84,33 @@ import static org.eclipse.che.dto.server.DtoFactory.newDto;
  * Defines Factory REST API.
  *
  * @author Anton Korneta
+ * @author Florent Benoit
  */
 @Api(value = "/factory",
      description = "Factory manager")
 @Path("/factory")
 public class FactoryService extends Service {
     private static final Logger LOG = LoggerFactory.getLogger(FactoryService.class);
+
+    /**
+     * Error message if there is no plugged resolver.
+     */
+    public static final String ERROR_NO_RESOLVER_AVAILABLE = "Cannot build factory with any of the provided parameters.";
+
+    /**
+     * If there is no parameter.
+     */
+    public static final String ERROR_NO_PARAMETERS = "Missing parameters";
+
+    /**
+     * Validate query parameter. If true, factory will be validated
+     */
+    public static final String VALIDATE_QUERY_PARAMETER = "validate";
+
+    /**
+     * Set of resolvers for factories. Injected through an holder.
+     */
+    private final Set<FactoryParametersResolver> factoryParametersResolvers;
 
     private final FactoryStore           factoryStore;
     private final FactoryEditValidator   factoryEditValidator;
@@ -106,6 +129,7 @@ public class FactoryService extends Service {
                           LinksHelper linksHelper,
                           FactoryBuilder factoryBuilder,
                           WorkspaceManager workspaceManager,
+                          FactoryParametersResolverHolder factoryParametersResolverHolder,
                           UserDao userDao) {
         this.factoryStore = factoryStore;
         this.createValidator = createValidator;
@@ -114,6 +138,7 @@ public class FactoryService extends Service {
         this.linksHelper = linksHelper;
         this.factoryBuilder = factoryBuilder;
         this.workspaceManager = workspaceManager;
+        this.factoryParametersResolvers = factoryParametersResolverHolder.getFactoryParametersResolvers();
         this.userDao = userDao;
     }
 
@@ -138,7 +163,6 @@ public class FactoryService extends Service {
     @POST
     @Consumes(MULTIPART_FORM_DATA)
     @Produces(APPLICATION_JSON)
-    @RolesAllowed("user")
     @ApiOperation(value = "Create a Factory and return data",
                   notes = "Save factory to storage and return stored data. Field 'factory' should contains factory information.")
     @ApiResponses({@ApiResponse(code = 200, message = "OK"),
@@ -210,7 +234,6 @@ public class FactoryService extends Service {
     @POST
     @Consumes(APPLICATION_JSON)
     @Produces(APPLICATION_JSON)
-    @RolesAllowed("user")
     @ApiOperation(value = "Stores the factory from the configuration",
                   notes = "Stores the factory without pictures and returns instance of the stored factory with links")
     @ApiResponses({@ApiResponse(code = 200, message = "OK"),
@@ -293,7 +316,6 @@ public class FactoryService extends Service {
      */
     @PUT
     @Path("/{id}")
-    @RolesAllowed("user")
     @Consumes(APPLICATION_JSON)
     @Produces(APPLICATION_JSON)
     @ApiOperation(value = "Updates factory information by its id",
@@ -348,7 +370,6 @@ public class FactoryService extends Service {
      */
     @DELETE
     @Path("/{id}")
-    @RolesAllowed("user")
     @ApiOperation(value = "Removes factory by its id",
                   notes = "Removes factory based on the factory id which is passed in a path parameter. " +
                           "For perform this operation user needs respective rights")
@@ -386,7 +407,6 @@ public class FactoryService extends Service {
     @GET
     @Path("/find")
     @Produces(APPLICATION_JSON)
-    @RolesAllowed({"user", "system/manager"})
     @ApiOperation(value = "Get Factory by attribute",
                   notes = "If specify more than one value for a single query parameter then will be taken first one")
     @ApiResponses({@ApiResponse(code = 200, message = "OK"),
@@ -557,16 +577,80 @@ public class FactoryService extends Service {
                                    @QueryParam("path")
                                    String path)
             throws ServerException, BadRequestException, NotFoundException, ForbiddenException {
-        final String userId = EnvironmentContext.getCurrent().getUser().getId();
         final WorkspaceImpl usersWorkspace = workspaceManager.getWorkspace(workspace);
-        if (!usersWorkspace.getNamespace().equals(userId)) {
-            throw new ForbiddenException("User '" + userId + "' doesn't have access to '" + usersWorkspace.getId() + "' workspace");
-        }
         excludeProjectsWithoutLocation(usersWorkspace, path);
         final Factory factory = newDto(Factory.class).withWorkspace(asDto(usersWorkspace.getConfig())).withV("4.0");
         return Response.ok(factory, APPLICATION_JSON)
                        .header(CONTENT_DISPOSITION, "attachment; filename=factory.json")
                        .build();
+    }
+
+
+    /**
+     * Resolve parameters and build a factory for the given parameters
+     *
+     * @param parameters
+     *         map of key/values used to build factory.
+     * @param uriInfo
+     *         url context
+     * @return a factory instance if found a matching resolver
+     * @throws NotFoundException
+     *         when no resolver can be used
+     * @throws ServerException
+     *         when any server errors occurs
+     * @throws BadRequestException
+     *         when the factory is invalid e.g. is expired
+     */
+    @POST
+    @Path("/resolver")
+    @Consumes(APPLICATION_JSON)
+    @Produces(APPLICATION_JSON)
+    @ApiOperation(value = "Create factory by providing map of parameters",
+                  notes = "Get JSON with factory information.")
+    @ApiResponses({@ApiResponse(code = 200, message = "OK"),
+                   @ApiResponse(code = 400, message = "Failed to validate factory"),
+                   @ApiResponse(code = 500, message = "Internal server error")})
+    public Factory resolveFactory(
+            @ApiParam(value = "Parameters provided to create factories")
+            final Map<String, String> parameters,
+            @ApiParam(value = "Whether or not to validate values like it is done when accepting a Factory",
+                      allowableValues = "true,false",
+                      defaultValue = "false")
+            @DefaultValue("false")
+            @QueryParam(VALIDATE_QUERY_PARAMETER)
+            final Boolean validate,
+            @Context
+            final UriInfo uriInfo) throws NotFoundException, ServerException, BadRequestException {
+
+        // Check parameter
+        if (parameters == null) {
+            throw new BadRequestException(ERROR_NO_PARAMETERS);
+        }
+
+        // search matching resolver
+        Optional<FactoryParametersResolver> factoryParametersResolverOptional = this.factoryParametersResolvers.stream().filter((resolver -> resolver.accept(parameters))).findFirst();
+
+        // no match
+        if (!factoryParametersResolverOptional.isPresent()) {
+            throw new NotFoundException(ERROR_NO_RESOLVER_AVAILABLE);
+        }
+
+        // create factory from matching resolver
+        final Factory factory = factoryParametersResolverOptional.get().createFactory(parameters);
+
+        // Apply links
+        try {
+            factory.setLinks(linksHelper.createLinks(factory, uriInfo, null));
+        } catch (UnsupportedEncodingException e) {
+            throw new ServerException(e.getLocalizedMessage(), e);
+        }
+
+        // time to validate the factory
+        if (validate) {
+            acceptValidator.validateOnAccept(factory);
+        }
+
+        return factory;
     }
 
     /**
@@ -597,7 +681,7 @@ public class FactoryService extends Service {
     private void excludeProjectsWithoutLocation(WorkspaceImpl usersWorkspace, String projectPath) throws BadRequestException {
         final boolean notEmptyPath = projectPath != null;
         //Condition for sifting valid project in user's workspace
-        Predicate<ProjectConfigImpl> predicate = projectConfig -> {
+        Predicate<ProjectConfig> predicate = projectConfig -> {
             // if project is a subproject (it's path contains another project) , then location can be null
             final boolean isSubProject = projectConfig.getPath().indexOf('/', 1) != -1;
             final boolean hasNotEmptySource = projectConfig.getSource() != null
@@ -625,18 +709,44 @@ public class FactoryService extends Service {
      * Adds to the factory information about creator and time of creation
      */
     private void processDefaults(Factory factory) {
-        final User currentUser = EnvironmentContext.getCurrent().getUser();
+        final Subject currentSubject = EnvironmentContext.getCurrent().getSubject();
         final Author creator = factory.getCreator();
         if (creator == null) {
-            factory.setCreator(newDto(Author.class).withUserId(currentUser.getId())
+            factory.setCreator(newDto(Author.class).withUserId(currentSubject.getUserId())
                                                    .withCreated(System.currentTimeMillis()));
             return;
         }
         if (isNullOrEmpty(creator.getUserId())) {
-            creator.setUserId(currentUser.getId());
+            creator.setUserId(currentSubject.getUserId());
         }
         if (creator.getCreated() == null) {
             creator.setCreated(System.currentTimeMillis());
         }
+    }
+
+
+    /**
+     * Usage of a dedicated class to manage the optional resolvers
+     */
+    protected static class FactoryParametersResolverHolder {
+
+        /**
+         * Optional inject for the resolvers.
+         */
+        @com.google.inject.Inject(optional = true)
+        private Set<FactoryParametersResolver> factoryParametersResolvers;
+
+        /**
+         * Provides the set of resolvers if there are some else return an empty set.
+         * @return a non null set
+         */
+        public Set<FactoryParametersResolver> getFactoryParametersResolvers() {
+            if (factoryParametersResolvers != null) {
+                return factoryParametersResolvers;
+            } else {
+                return Collections.emptySet();
+            }
+        }
+
     }
 }

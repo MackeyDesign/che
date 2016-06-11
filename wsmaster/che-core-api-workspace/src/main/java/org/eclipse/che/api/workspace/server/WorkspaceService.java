@@ -27,10 +27,7 @@ import org.eclipse.che.api.core.NotFoundException;
 import org.eclipse.che.api.core.ServerException;
 import org.eclipse.che.api.core.rest.Service;
 import org.eclipse.che.api.core.rest.annotations.GenerateLink;
-import org.eclipse.che.api.core.rest.shared.dto.Link;
-import org.eclipse.che.api.core.rest.shared.dto.LinkParameter;
 import org.eclipse.che.api.machine.server.MachineManager;
-import org.eclipse.che.api.machine.server.MachineService;
 import org.eclipse.che.api.machine.server.model.impl.CommandImpl;
 import org.eclipse.che.api.machine.server.model.impl.MachineImpl;
 import org.eclipse.che.api.machine.shared.dto.CommandDto;
@@ -45,9 +42,7 @@ import org.eclipse.che.api.workspace.shared.dto.WorkspaceConfigDto;
 import org.eclipse.che.api.workspace.shared.dto.WorkspaceDto;
 import org.eclipse.che.commons.env.EnvironmentContext;
 
-import javax.annotation.security.RolesAllowed;
 import javax.inject.Inject;
-import javax.inject.Named;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.DefaultValue;
@@ -62,38 +57,17 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.SecurityContext;
-import javax.ws.rs.core.UriBuilder;
-import java.net.URI;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import static com.google.common.base.MoreObjects.firstNonNull;
 import static java.lang.String.format;
-import static java.util.Arrays.asList;
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 import static javax.ws.rs.core.MediaType.APPLICATION_JSON;
-import static javax.ws.rs.core.MediaType.TEXT_HTML;
-import static org.eclipse.che.api.core.model.workspace.WorkspaceStatus.RUNNING;
-import static org.eclipse.che.api.core.util.LinksHelper.createLink;
-import static org.eclipse.che.api.machine.shared.Constants.WSAGENT_REFERENCE;
-import static org.eclipse.che.api.machine.shared.Constants.WSAGENT_WEBSOCKET_REFERENCE;
 import static org.eclipse.che.api.workspace.server.DtoConverter.asDto;
-import static org.eclipse.che.api.workspace.shared.Constants.GET_ALL_USER_WORKSPACES;
 import static org.eclipse.che.api.workspace.shared.Constants.LINK_REL_CREATE_WORKSPACE;
-import static org.eclipse.che.api.workspace.shared.Constants.LINK_REL_GET_SNAPSHOT;
 import static org.eclipse.che.api.workspace.shared.Constants.LINK_REL_GET_WORKSPACES;
-import static org.eclipse.che.api.workspace.shared.Constants.LINK_REL_GET_WORKSPACE_EVENTS_CHANNEL;
-import static org.eclipse.che.api.workspace.shared.Constants.LINK_REL_IDE_URL;
-import static org.eclipse.che.api.workspace.shared.Constants.LINK_REL_REMOVE_WORKSPACE;
-import static org.eclipse.che.api.workspace.shared.Constants.LINK_REL_SELF;
-import static org.eclipse.che.api.workspace.shared.Constants.LINK_REL_START_WORKSPACE;
-import static org.eclipse.che.api.workspace.shared.Constants.LINK_REL_STOP_WORKSPACE;
-import static org.eclipse.che.api.workspace.shared.Constants.LIN_REL_GET_WORKSPACE;
-import static org.eclipse.che.dto.server.DtoFactory.cloneDto;
-import static org.eclipse.che.dto.server.DtoFactory.newDto;
 
 /**
  * Defines Workspace REST API.
@@ -107,9 +81,7 @@ public class WorkspaceService extends Service {
     private final WorkspaceManager   workspaceManager;
     private final WorkspaceValidator validator;
     private final MachineManager     machineManager;
-    //TODO: we need keep IDE context in some property to have possibility configure it because context is different in Che and Hosted packaging
-    //TODO: not good solution do it here but critical for this task  https://jira.codenvycorp.com/browse/IDEX-3619
-    private final String             ideContext;
+    private final WorkspaceServiceLinksInjector linksInjector;
 
     @Context
     private SecurityContext securityContext;
@@ -118,17 +90,16 @@ public class WorkspaceService extends Service {
     public WorkspaceService(WorkspaceManager workspaceManager,
                             MachineManager machineManager,
                             WorkspaceValidator validator,
-                            @Named("che.ide.context") String ideContext) {
+                            WorkspaceServiceLinksInjector workspaceServiceLinksInjector) {
         this.workspaceManager = workspaceManager;
         this.machineManager = machineManager;
         this.validator = validator;
-        this.ideContext = ideContext;
+        this.linksInjector = workspaceServiceLinksInjector;
     }
 
     @POST
     @Consumes(APPLICATION_JSON)
     @Produces(APPLICATION_JSON)
-    @RolesAllowed("user")
     @GenerateLink(rel = LINK_REL_CREATE_WORKSPACE)
     @ApiOperation(value = "Create a new workspace based on the configuration",
                   notes = "This operation can be performed only by authorized user," +
@@ -165,21 +136,20 @@ public class WorkspaceService extends Service {
         validator.validateAttributes(attributes);
         validator.validateConfig(config);
         final WorkspaceImpl workspace = workspaceManager.createWorkspace(config,
-                                                                         getCurrentUserId(),
+                                                                         EnvironmentContext.getCurrent().getSubject().getUserName(),
                                                                          attributes,
                                                                          accountId);
         if (startAfterCreate) {
             workspaceManager.startWorkspace(workspace.getId(), null, accountId);
         }
         return Response.status(201)
-                       .entity(injectLinks(asDto(workspace)))
+                       .entity(linksInjector.injectLinks(asDto(workspace), getServiceContext()))
                        .build();
     }
 
     @GET
     @Path("/{key}")
     @Produces(APPLICATION_JSON)
-    @RolesAllowed("user")
     @ApiOperation(value = "Get the workspace by the composite key",
                   notes = "Composite key can be just workspace ID or in the " +
                           "namespace:workspace_name form, where namespace is optional (e.g :workspace_name is valid key too.")
@@ -197,14 +167,13 @@ public class WorkspaceService extends Service {
                                                                       BadRequestException {
         validateKey(key);
         final WorkspaceImpl workspace = workspaceManager.getWorkspace(key);
-        return injectLinks(asDto(workspace));
+        return linksInjector.injectLinks(asDto(workspace), getServiceContext());
     }
 
     @GET
     @Produces(APPLICATION_JSON)
-    @RolesAllowed("user")
     @GenerateLink(rel = LINK_REL_GET_WORKSPACES)
-    @ApiOperation(value = "Get the workspaces owned by the current user",
+    @ApiOperation(value = "Get workspaces which user can read",
                   notes = "This operation can be performed only by authorized user",
                   response = WorkspaceDto.class,
                   responseContainer = "List")
@@ -222,10 +191,10 @@ public class WorkspaceService extends Service {
                                             @QueryParam("status")
                                             String status) throws ServerException, BadRequestException {
         //TODO add maxItems & skipCount to manager
-        return workspaceManager.getWorkspaces(getCurrentUserId())
+        return workspaceManager.getWorkspaces(EnvironmentContext.getCurrent().getSubject().getUserId())
                                .stream()
                                .filter(ws -> status == null || status.equalsIgnoreCase(ws.getStatus().toString()))
-                               .map(workspace -> injectLinks(asDto(workspace)))
+                               .map(workspace -> linksInjector.injectLinks(asDto(workspace), getServiceContext()))
                                .collect(toList());
     }
 
@@ -233,7 +202,6 @@ public class WorkspaceService extends Service {
     @Path("/{id}")
     @Consumes(APPLICATION_JSON)
     @Produces(APPLICATION_JSON)
-    @RolesAllowed("user")
     @ApiOperation(value = "Update the workspace by replacing all the existing data with update",
                   notes = "This operation can be performed only by the workspace owner")
     @ApiResponses({@ApiResponse(code = 200, message = "The workspace successfully updated"),
@@ -253,12 +221,11 @@ public class WorkspaceService extends Service {
                                                            ConflictException {
         requiredNotNull(update, "Workspace configuration");
         validator.validateWorkspace(update);
-        return injectLinks(asDto(workspaceManager.updateWorkspace(id, update)));
+        return linksInjector.injectLinks(asDto(workspaceManager.updateWorkspace(id, update)), getServiceContext());
     }
 
     @DELETE
     @Path("/{id}")
-    @RolesAllowed("user")
     @ApiOperation(value = "Removes the workspace",
                   notes = "This operation can be performed only by the workspace owner")
     @ApiResponses({@ApiResponse(code = 204, message = "The workspace successfully removed"),
@@ -272,7 +239,7 @@ public class WorkspaceService extends Service {
                                                                                         ConflictException,
                                                                                         ForbiddenException {
         if (!workspaceManager.getSnapshot(id).isEmpty()) {
-            machineManager.removeSnapshots(getCurrentUserId(), id);
+            machineManager.removeSnapshots(EnvironmentContext.getCurrent().getSubject().getUserId(), id);
         }
         workspaceManager.removeWorkspace(id);
     }
@@ -280,7 +247,6 @@ public class WorkspaceService extends Service {
     @POST
     @Path("/{id}/runtime")
     @Produces(APPLICATION_JSON)
-    @RolesAllowed("user")
     @ApiOperation(value = "Start the workspace by the id",
                   notes = "This operation can be performed only by the workspace owner." +
                           "The workspace starts asynchronously")
@@ -307,14 +273,13 @@ public class WorkspaceService extends Service {
         params.put("accountId", accountId);
         params.put("workspaceId", workspaceId);
 
-        return injectLinks(asDto(workspaceManager.startWorkspace(workspaceId, envName, accountId)));
+        return linksInjector.injectLinks(asDto(workspaceManager.startWorkspace(workspaceId, envName, accountId)), getServiceContext());
     }
 
     @POST
     @Path("/runtime")
     @Consumes(APPLICATION_JSON)
     @Produces(APPLICATION_JSON)
-    @RolesAllowed({"user", "temp-user"})
     @ApiOperation(value = "Start the temporary workspace from the given configuration",
                   notes = "This operation can be performed only by the authorized user or temp user." +
                           "The workspace starts synchronously")
@@ -340,16 +305,15 @@ public class WorkspaceService extends Service {
                                                                  ConflictException {
         requiredNotNull(cfg, "Workspace configuration");
         validator.validateConfig(cfg);
-        return injectLinks(asDto(workspaceManager.startWorkspace(cfg,
-                                                                 getCurrentUserId(),
-                                                                 firstNonNull(isTemporary, false),
-                                                                 accountId)));
+        return linksInjector.injectLinks(asDto(workspaceManager.startWorkspace(cfg,
+                                                                               EnvironmentContext.getCurrent().getSubject().getUserName(),
+                                                                               firstNonNull(isTemporary, false),
+                                                                               accountId)), getServiceContext());
     }
 
     @POST
     @Path("/{id}/runtime/snapshot")
     @Produces(APPLICATION_JSON)
-    @RolesAllowed("user")
     @ApiOperation(value = "Recover the workspace by the id from the snapshot",
                   notes = "This operation can be performed only by the workspace owner." +
                           "The workspace recovers asynchronously")
@@ -377,12 +341,11 @@ public class WorkspaceService extends Service {
         params.put("accountId", accountId);
         params.put("workspaceId", workspaceId);
 
-        return injectLinks(asDto(workspaceManager.recoverWorkspace(workspaceId, envName, accountId)));
+        return linksInjector.injectLinks(asDto(workspaceManager.recoverWorkspace(workspaceId, envName, accountId)), getServiceContext());
     }
 
     @DELETE
     @Path("/{id}/runtime")
-    @RolesAllowed("user")
     @ApiOperation(value = "Stop the workspace",
                   notes = "This operation can be performed only by the workspace owner." +
                           "The workspace stops asynchronously")
@@ -399,7 +362,6 @@ public class WorkspaceService extends Service {
 
     @POST
     @Path("/{id}/snapshot")
-    @RolesAllowed("user")
     @ApiOperation(value = "Create a snapshot from the workspace",
                   notes = "This operation can be performed only by the workspace owner.")
     @ApiResponses({@ApiResponse(code = 200, message = "The snapshot successfully created"),
@@ -419,7 +381,6 @@ public class WorkspaceService extends Service {
     @GET
     @Path("/{id}/snapshot")
     @Produces(APPLICATION_JSON)
-    @RolesAllowed("user")
     @ApiOperation(value = "Get the snapshot by the id",
                   notes = "This operation can be performed only by the workspace owner",
                   response = SnapshotDto.class,
@@ -436,7 +397,7 @@ public class WorkspaceService extends Service {
         return workspaceManager.getSnapshot(workspaceId)
                                .stream()
                                .map(DtoConverter::asDto)
-                               .map(this::injectLinks)
+                               .map(snapshotDto -> linksInjector.injectLinks(snapshotDto, getServiceContext()))
                                .collect(toList());
     }
 
@@ -444,7 +405,6 @@ public class WorkspaceService extends Service {
     @Path("/{id}/command")
     @Consumes(APPLICATION_JSON)
     @Produces(APPLICATION_JSON)
-    @RolesAllowed("user")
     @ApiOperation(value = "Update the workspace by adding a new command to it",
                   notes = "This operation can be performed only by the workspace owner")
     @ApiResponses({@ApiResponse(code = 200, message = "The workspace successfully updated"),
@@ -466,14 +426,13 @@ public class WorkspaceService extends Service {
         final WorkspaceImpl workspace = workspaceManager.getWorkspace(id);
         workspace.getConfig().getCommands().add(new CommandImpl(newCommand));
         validator.validateConfig(workspace.getConfig());
-        return injectLinks(asDto(workspaceManager.updateWorkspace(workspace.getId(), workspace)));
+        return linksInjector.injectLinks(asDto(workspaceManager.updateWorkspace(workspace.getId(), workspace)), getServiceContext());
     }
 
     @PUT
     @Path("/{id}/command/{name}")
     @Consumes(APPLICATION_JSON)
     @Produces(APPLICATION_JSON)
-    @RolesAllowed("user")
     @ApiOperation(value = "Update the workspace command by replacing the command with a new one",
                   notes = "This operation can be performed only by the workspace owner")
     @ApiResponses({@ApiResponse(code = 200, message = "The command successfully updated"),
@@ -501,12 +460,11 @@ public class WorkspaceService extends Service {
         }
         commands.add(new CommandImpl(update));
         validator.validateConfig(workspace.getConfig());
-        return injectLinks(asDto(workspaceManager.updateWorkspace(workspace.getId(), workspace)));
+        return linksInjector.injectLinks(asDto(workspaceManager.updateWorkspace(workspace.getId(), workspace)), getServiceContext());
     }
 
     @DELETE
     @Path("/{id}/command/{name}")
-    @RolesAllowed("user")
     @ApiOperation(value = "Remove the command from the workspace",
                   notes = "This operation can be performed only by the workspace owner")
     @ApiResponses({@ApiResponse(code = 204, message = "The command successfully removed"),
@@ -533,7 +491,6 @@ public class WorkspaceService extends Service {
     @Path("/{id}/environment")
     @Consumes(APPLICATION_JSON)
     @Produces(APPLICATION_JSON)
-    @RolesAllowed("user")
     @ApiOperation(value = "Add a new environment to the workspace",
                   notes = "This operation can be performed only by the workspace owner")
     @ApiResponses({@ApiResponse(code = 200, message = "The workspace successfully updated"),
@@ -555,14 +512,13 @@ public class WorkspaceService extends Service {
         final WorkspaceImpl workspace = workspaceManager.getWorkspace(id);
         workspace.getConfig().getEnvironments().add(new EnvironmentImpl(newEnvironment));
         validator.validateConfig(workspace.getConfig());
-        return injectLinks(asDto(workspaceManager.updateWorkspace(id, workspace)));
+        return linksInjector.injectLinks(asDto(workspaceManager.updateWorkspace(id, workspace)), getServiceContext());
     }
 
     @PUT
     @Path("/{id}/environment/{name}")
     @Consumes(APPLICATION_JSON)
     @Produces(APPLICATION_JSON)
-    @RolesAllowed("user")
     @ApiOperation(value = "Update the workspace environment by replacing it with a new one",
                   notes = "This operation can be performed only by the workspace owner")
     @ApiResponses({@ApiResponse(code = 200, message = "The environment successfully updated"),
@@ -590,12 +546,11 @@ public class WorkspaceService extends Service {
         }
         workspace.getConfig().getEnvironments().add(new EnvironmentImpl(update));
         validator.validateConfig(workspace.getConfig());
-        return injectLinks(asDto(workspaceManager.updateWorkspace(id, workspace)));
+        return linksInjector.injectLinks(asDto(workspaceManager.updateWorkspace(id, workspace)), getServiceContext());
     }
 
     @DELETE
     @Path("/{id}/environment/{name}")
-    @RolesAllowed("user")
     @ApiOperation(value = "Remove the environment from the workspace",
                   notes = "This operation can be performed only by the workspace owner")
     @ApiResponses({@ApiResponse(code = 204, message = "The environment successfully removed"),
@@ -622,7 +577,6 @@ public class WorkspaceService extends Service {
     @Path("/{id}/project")
     @Consumes(APPLICATION_JSON)
     @Produces(APPLICATION_JSON)
-    @RolesAllowed("user")
     @ApiOperation(value = "Adds a new project to the workspace",
                   notes = "This operation can be performed only by the workspace owner")
     @ApiResponses({@ApiResponse(code = 200, message = "The project successfully added to the workspace"),
@@ -644,14 +598,13 @@ public class WorkspaceService extends Service {
         final WorkspaceImpl workspace = workspaceManager.getWorkspace(id);
         workspace.getConfig().getProjects().add(new ProjectConfigImpl(newProject));
         validator.validateConfig(workspace.getConfig());
-        return injectLinks(asDto(workspaceManager.updateWorkspace(id, workspace)));
+        return linksInjector.injectLinks(asDto(workspaceManager.updateWorkspace(id, workspace)), getServiceContext());
     }
 
     @PUT
     @Path("/{id}/project/{path:.*}")
     @Consumes(APPLICATION_JSON)
     @Produces(APPLICATION_JSON)
-    @RolesAllowed("user")
     @ApiOperation(value = "Update the workspace project by replacing it with a new one",
                   notes = "This operation can be performed only by the workspace owner")
     @ApiResponses({@ApiResponse(code = 200, message = "The project successfully updated"),
@@ -682,12 +635,11 @@ public class WorkspaceService extends Service {
         }
         projects.add(new ProjectConfigImpl(update));
         validator.validateConfig(workspace.getConfig());
-        return injectLinks(asDto(workspaceManager.updateWorkspace(id, workspace)));
+        return linksInjector.injectLinks(asDto(workspaceManager.updateWorkspace(id, workspace)), getServiceContext());
     }
 
     @DELETE
     @Path("/{id}/project/{path:.*}")
-    @RolesAllowed("user")
     @ApiOperation(value = "Remove the project from the workspace",
                   notes = "This operation can be performed only by the workspace owner")
     @ApiResponses({@ApiResponse(code = 204, message = "The project successfully removed"),
@@ -715,7 +667,6 @@ public class WorkspaceService extends Service {
     @Path("/{id}/machine")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    @RolesAllowed("user")
     @ApiOperation(value = "Create a new machine based on the configuration",
                   notes = "This operation can be performed only by authorized user")
     @ApiResponses({@ApiResponse(code = 201, message = "The machine successfully created"),
@@ -737,7 +688,9 @@ public class WorkspaceService extends Service {
         requiredNotNull(machineConfig.getType(), "Machine type");
         requiredNotNull(machineConfig.getSource(), "Machine source");
         requiredNotNull(machineConfig.getSource().getType(), "Machine source type");
-        requiredNotNull(machineConfig.getSource().getLocation(), "Machine source location");
+        // definition of source should come either with a content or with location
+        requiredOnlyOneNotNull(machineConfig.getSource().getLocation(), machineConfig.getSource().getContent(),
+                        "Machine source should provide either location or content");
 
         final WorkspaceImpl workspace = workspaceManager.getWorkspace(workspaceId);
         if (workspace.getRuntime() == null) {
@@ -749,159 +702,9 @@ public class WorkspaceService extends Service {
                                                                       workspace.getRuntime().getActiveEnv());
 
         return Response.status(201)
-                       .entity(MachineService.injectLinks(org.eclipse.che.api.machine.server.DtoConverter.asDto(machine),
-                                                          getServiceContext()))
+                       .entity(linksInjector.injectMachineLinks(org.eclipse.che.api.machine.server.DtoConverter.asDto(machine),
+                                                                getServiceContext()))
                        .build();
-    }
-
-    private WorkspaceDto injectLinks(WorkspaceDto workspace) {
-        final UriBuilder uriBuilder = getServiceContext().getServiceUriBuilder();
-        final List<Link> links = new ArrayList<>();
-        // add common workspace links
-        links.add(createLink("GET",
-                             uriBuilder.clone()
-                                       .path(getClass(), "getByKey")
-                                       .build(workspace.getId())
-                                       .toString(),
-                             LINK_REL_SELF));
-        links.add(createLink("POST",
-                             uriBuilder.clone()
-                                       .path(getClass(), "startById")
-                                       .build(workspace.getId())
-                                       .toString(),
-                             APPLICATION_JSON,
-                             LINK_REL_START_WORKSPACE));
-        links.add(createLink("DELETE",
-                             uriBuilder.clone()
-                                       .path(getClass(), "delete")
-                                       .build(workspace.getId())
-                                       .toString(),
-                             APPLICATION_JSON,
-                             LINK_REL_REMOVE_WORKSPACE));
-        links.add(createLink("GET",
-                             uriBuilder.clone()
-                                       .path(getClass(), "getWorkspaces")
-                                       .build()
-                                       .toString(),
-                             APPLICATION_JSON,
-                             GET_ALL_USER_WORKSPACES));
-        links.add(createLink("GET",
-                             uriBuilder.clone()
-                                       .path(getClass(), "getSnapshot")
-                                       .build(workspace.getId())
-                                       .toString(),
-                             APPLICATION_JSON,
-                             LINK_REL_GET_SNAPSHOT));
-
-        //TODO here we add url to IDE with workspace name not good solution do it here but critical for this task  https://jira.codenvycorp.com/browse/IDEX-3619
-        final URI ideUri = uriBuilder.clone()
-                                     .replacePath(ideContext)
-                                     .path(workspace.getConfig().getName())
-                                     .build();
-        links.add(createLink("GET", ideUri.toString(), TEXT_HTML, LINK_REL_IDE_URL));
-
-        // add workspace channel link
-        final Link workspaceChannelLink = createLink("GET",
-                                                     getServiceContext().getBaseUriBuilder()
-                                                                        .path("ws")
-                                                                        .path(workspace.getId())
-                                                                        .scheme("https".equals(ideUri.getScheme()) ? "wss" : "ws")
-                                                                        .build()
-                                                                        .toString(),
-                                                     null);
-        final LinkParameter channelParameter = newDto(LinkParameter.class).withName("channel")
-                                                                          .withRequired(true);
-
-        links.add(cloneDto(workspaceChannelLink).withRel(LINK_REL_GET_WORKSPACE_EVENTS_CHANNEL)
-                                                .withParameters(singletonList(
-                                                        cloneDto(channelParameter).withDefaultValue("workspace:" + workspace.getId()))));
-
-        // add machine channels links to machines configs
-        workspace.getConfig()
-                 .getEnvironments()
-                 .stream()
-                 .forEach(environmentDto -> injectMachineChannelsLinks(environmentDto,
-                                                                       workspace.getId(),
-                                                                       workspaceChannelLink,
-                                                                       channelParameter));
-        // add links for running workspace
-        if (workspace.getStatus() == RUNNING) {
-            workspace.getRuntime()
-                     .getLinks()
-                     .add(createLink("DELETE",
-                                     uriBuilder.clone()
-                                               .path(getClass(), "stop")
-                                               .build(workspace.getId())
-                                               .toString(),
-                                     LINK_REL_STOP_WORKSPACE));
-
-            if (workspace.getRuntime() != null && workspace.getRuntime().getDevMachine() != null) {
-                workspace.getRuntime()
-                         .getDevMachine()
-                         .getRuntime()
-                         .getServers()
-                         .values()
-                         .stream()
-                         .filter(server -> WSAGENT_REFERENCE.equals(server.getRef()))
-                         .findAny()
-                         .ifPresent(wsAgent -> {
-                             workspace.getRuntime()
-                                      .getLinks()
-                                      .add(createLink("GET",
-                                                      wsAgent.getUrl(),
-                                                      WSAGENT_REFERENCE));
-                             workspace.getRuntime()
-                                      .getLinks()
-                                      .add(createLink("GET",
-                                                      UriBuilder.fromUri(wsAgent.getUrl())
-                                                                .scheme("https".equals(ideUri.getScheme()) ? "wss" : "ws")
-                                                                .build()
-                                                                .toString(),
-                                                      WSAGENT_WEBSOCKET_REFERENCE));
-                         });
-            }
-        }
-        return workspace.withLinks(links);
-    }
-
-    private void injectMachineChannelsLinks(EnvironmentDto environmentDto,
-                                            String workspaceId,
-                                            Link machineChannelLink,
-                                            LinkParameter channelParameter) {
-
-        for (MachineConfigDto machineConfigDto : environmentDto.getMachineConfigs()) {
-            MachineService.injectMachineChannelsLinks(machineConfigDto,
-                                                      workspaceId,
-                                                      environmentDto.getName(),
-                                                      machineChannelLink,
-                                                      channelParameter);
-        }
-    }
-
-    private SnapshotDto injectLinks(SnapshotDto snapshotDto) {
-        final UriBuilder uriBuilder = getServiceContext().getServiceUriBuilder();
-        final Link machineLink = createLink("GET",
-                                            getServiceContext().getBaseUriBuilder()
-                                                               .path("/machine/{id}")
-                                                               .build(snapshotDto.getId())
-                                                               .toString(),
-                                            APPLICATION_JSON,
-                                            "get machine");
-        final Link workspaceLink = createLink("GET",
-                                              uriBuilder.clone()
-                                                        .path(getClass(), "getByKey")
-                                                        .build(snapshotDto.getWorkspaceId())
-                                                        .toString(),
-                                              APPLICATION_JSON,
-                                              LIN_REL_GET_WORKSPACE);
-        final Link workspaceSnapshotLink = createLink("GET",
-                                                      uriBuilder.clone()
-                                                                .path(getClass(), "getSnapshot")
-                                                                .build(snapshotDto.getWorkspaceId())
-                                                                .toString(),
-                                                      APPLICATION_JSON,
-                                                      LINK_REL_SELF);
-        return snapshotDto.withLinks(asList(machineLink, workspaceLink, workspaceSnapshotLink));
     }
 
     private static Map<String, String> parseAttrs(List<String> attributes) throws BadRequestException {
@@ -921,10 +724,6 @@ public class WorkspaceService extends Service {
         return res;
     }
 
-    private static String getCurrentUserId() {
-        return EnvironmentContext.getCurrent().getUser().getId();
-    }
-
     /**
      * Checks object reference is not {@code null}
      *
@@ -937,6 +736,27 @@ public class WorkspaceService extends Service {
      */
     private void requiredNotNull(Object object, String subject) throws BadRequestException {
         if (object == null) {
+            throw new BadRequestException(subject + " required");
+        }
+    }
+
+    /**
+     * Checks only one of the given object reference is {@code null}
+     *
+     * @param object1
+     *         object reference to check
+     * @param object2
+     *         object reference to check
+     * @param subject
+     *         used as subject of exception message "{subject} required"
+     * @throws BadRequestException
+     *         when objects are both null or have both a value reference is {@code null}
+     */
+    private void requiredOnlyOneNotNull(Object object1, Object object2, String subject) throws BadRequestException {
+        if (object1 == null && object2 == null) {
+            throw new BadRequestException(subject + " required");
+        }
+        if (object1 != null && object2 != null) {
             throw new BadRequestException(subject + " required");
         }
     }
