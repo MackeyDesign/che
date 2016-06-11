@@ -153,5 +153,7 @@ public interface PairProgrammingResources extends ClientBundle {
         String comment();
 
         String pairProgramminig();
+        
+        String pairProgramminigRemove();
     }
 }
