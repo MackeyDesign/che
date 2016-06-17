@@ -378,7 +378,7 @@
     background-color: #000099;
 }
 .orionCodenvy .annotationLine.currentLine {
-    background-color: editorCurrentLineColor !important;
+    background-color: editorCurrentLineColor !importmant;
 }
 .orionCodenvy .comment.block.documentation {
     color: comment;
